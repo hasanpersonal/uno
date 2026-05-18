@@ -2,13 +2,14 @@
 const firebaseConfig = {
     apiKey: "AIzaSyCKqsxIC2aGBR0UnejiXlIaJeKAfdW_Zp0",
     authDomain: "online-ha.firebaseapp.com",
-    databaseURL: "https://online-ha-default-rtdb.firebaseio.com",
+    databaseURL: "https://online-ha-default-rtdb.asia-southeast1.firebasedatabase.app", // <-- LINK UPDATED FOR ASIA SERVER
     projectId: "online-ha",
     storageBucket: "online-ha.firebasestorage.app",
     messagingSenderId: "1033988386517",
     appId: "1:1033988386517:web:e75348acd3f9765a84bc5c",
     measurementId: "G-T6GYPQT874"
 };
+
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
