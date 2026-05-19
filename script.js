@@ -1,4 +1,3 @@
-// ১. ফায়ারবেস কনফিগারেশন ও ইনিশিয়ালাইজেশন (CDN ইমপোর্ট ঠিক করা হয়েছে)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
@@ -16,51 +15,55 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// ২. গ্লোবাল স্টেট
 let currentRoomCode = null;
 let myPlayerId = null;
 let myName = "";
 let myRole = ""; 
 let isCreator = false;
 let gameState = null;
-let lastMainCardId = ""; // অ্যানিমেশন লুপ আটকানোর জন্য ট্র্যাকিং ভেরিয়েবল
+let lastMainCardId = "";
 
-// DOM এলিমেন্ট
 const entryScreen = document.getElementById('entry-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
 const chatContainer = document.getElementById('chat-container');
 
-// ইভেন্ট লিসেনার
-document.getElementById('btn-create-room').addEventListener('click', () => handleRoomAction('create'));
-document.getElementById('btn-join-player').addEventListener('click', () => handleRoomAction('join-player'));
-document.getElementById('btn-join-spectator').addEventListener('click', () => handleRoomAction('join-spectator'));
+// Mobile Fullscreen and Address Bar Hiding Handler
+function enableFullscreen() {
+    const docEl = document.documentElement;
+    if (docEl.requestFullscreen) docEl.requestFullscreen();
+    else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+    else if (docEl.msRequestFullscreen) docEl.msRequestFullscreen();
+}
+
+// Event Listeners
+document.getElementById('btn-create-room').addEventListener('click', () => { enableFullscreen(); handleRoomAction('create'); });
+document.getElementById('btn-join-player').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join-player'); });
+document.getElementById('btn-join-spectator').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join-spectator'); });
 document.getElementById('btn-send-chat').addEventListener('click', sendChatMessage);
 document.getElementById('btn-start-game').addEventListener('click', startGame);
 document.getElementById('draw-pile').addEventListener('click', drawCardFromDeck);
 
-// ৩. রুম লজিক
+// Mobile Mobile Chat Toggle Engine
+document.getElementById('btn-toggle-chat').addEventListener('click', () => chatContainer.classList.remove('chat-closed'));
+document.getElementById('btn-close-chat').addEventListener('click', () => chatContainer.classList.add('chat-closed'));
+
 function handleRoomAction(action) {
-    myName = document.getElementById('player-name').value.trim();
+    const createName = document.getElementById('create-player-name').value.trim();
+    const joinName = document.getElementById('join-player-name').value.trim();
     const inputCode = document.getElementById('room-code').value.trim().toUpperCase();
 
-    if (!myName) {
-        alert("অনুগ্রহ করে নাম লিখুন!");
-        return;
-    }
-
-    myPlayerId = 'user_' + Math.random().toString(36).substr(2, 9);
-
     if (action === 'create') {
+        if (!createName) return alert("Please enter your name to create a room!");
+        myName = createName;
         currentRoomCode = Math.random().toString(36).substr(2, 6).toUpperCase();
         isCreator = true;
         myRole = 'player';
         setupRoomInFirebase();
     } else {
-        if (!inputCode) {
-            alert("রুম কোড দিন!");
-            return;
-        }
+        if (!joinName) return alert("Please enter your name to join!");
+        if (!inputCode) return alert("Please enter a valid room code!");
+        myName = joinName;
         currentRoomCode = inputCode;
         isCreator = false;
         myRole = (action === 'join-player') ? 'player' : 'spectator';
@@ -69,12 +72,13 @@ function handleRoomAction(action) {
 }
 
 function setupRoomInFirebase() {
+    myPlayerId = 'user_' + Math.random().toString(36).substr(2, 9);
     const roomRef = ref(db, `rooms/${currentRoomCode}`);
     const initialData = {
         creator: myPlayerId,
         status: "lobby",
         currentTurn: 0,
-        lastAction: { type: 'init', playerId: '', cardId: '' }, // অ্যাকশন ট্র্যাকার
+        lastAction: { type: 'init', playerId: '', cardId: '' },
         players: {},
         spectators: {}
     };
@@ -87,12 +91,13 @@ function setupRoomInFirebase() {
 }
 
 function joinRoomInFirebase() {
+    myPlayerId = 'user_' + Math.random().toString(36).substr(2, 9);
     const userRef = ref(db, `rooms/${currentRoomCode}/${myRole}s/${myPlayerId}`);
     set(userRef, { name: myName, id: myPlayerId }).then(() => {
         switchToScreen('lobby');
         listenToRoomChanges();
     }).catch(() => {
-        alert("রুম কোডটি সঠিক নয়!");
+        alert("Room not found!");
     });
 }
 
@@ -112,7 +117,6 @@ function switchToScreen(screenType) {
     }
 }
 
-// ৪. রিয়েলটাইম লিসেনার ও অ্যানিমেশন সিঙ্ক সমাধান
 function listenToRoomChanges() {
     const roomRef = ref(db, `rooms/${currentRoomCode}`);
     onValue(roomRef, (snapshot) => {
@@ -131,7 +135,6 @@ function listenToRoomChanges() {
         if (gameState.status === 'playing') {
             if (gameScreen.classList.contains('hidden')) switchToScreen('game');
             
-            // নেটওয়ার্ক অ্যানিমেশন হ্যান্ডলার (অন্যান্য প্লেয়ারদের স্ক্রিনে কার্ড ওড়া দেখানোর জন্য)
             const lastAction = gameState.lastAction;
             if (lastAction && lastAction.cardId !== lastMainCardId) {
                 lastMainCardId = lastAction.cardId;
@@ -175,7 +178,6 @@ function updateChatMessages(chatData) {
     container.scrollTop = container.scrollHeight;
 }
 
-// ৫. গেম স্টার্ট লজিক
 function startGame() {
     if (!isCreator) return;
     const colors = ['red', 'blue', 'green', 'yellow'];
@@ -207,14 +209,13 @@ function startGame() {
     });
 }
 
-// ৬. UI রেন্ডারিং
 function renderGameBoard() {
     const turnOrder = gameState.turnOrder || [];
     const activePlayerId = turnOrder[gameState.currentTurn];
     
     if (activePlayerId) {
-        const activeName = gameState.players[activePlayerId]?.name || "অজানা";
-        document.getElementById('active-player-name').innerText = (activePlayerId === myPlayerId) ? "আপনার টার্ন!" : `${activeName}-এর টার্ন`;
+        const activeName = gameState.players[activePlayerId]?.name || "Unknown";
+        document.getElementById('active-player-name').innerText = (activePlayerId === myPlayerId) ? "YOUR TURN!" : `${activeName}'s Turn`;
     }
 
     const orderContainer = document.getElementById('player-turn-order');
@@ -222,7 +223,7 @@ function renderGameBoard() {
     turnOrder.forEach(id => {
         const p = gameState.players[id];
         if (p) {
-            const activeStyle = (id === activePlayerId) ? "style='border:2px solid #f1c40f; background:#e74c3c;'" : "";
+            const activeStyle = (id === activePlayerId) ? "style='border:2px solid #f1c40f; background:#e74c3c; font-weight:bold;'" : "";
             orderContainer.innerHTML += `<span ${activeStyle}>${p.name} (${p.cards ? p.cards.length : 0})</span>`;
         }
     });
@@ -238,17 +239,17 @@ function renderGameBoard() {
         gameState.players[myPlayerId].cards.forEach((card, index) => {
             const cardEl = createCardDOM(card);
             cardEl.addEventListener('click', (e) => {
-                if (activePlayerId !== myPlayerId) return alert("আপনার টার্ন নয়!");
+                if (activePlayerId !== myPlayerId) return alert("Not your turn!");
                 if (card.color === gameState.mainCard.color || card.value === gameState.mainCard.value) {
                     playMyCard(index, card, e.target.closest('.uno-card'));
                 } else {
-                    alert("কার্ড মেলেনি!");
+                    alert("Card doesn't match!");
                 }
             });
             handContainer.appendChild(cardEl);
         });
     } else if (myRole === 'spectator') {
-        handContainer.innerHTML = "<p style='color:#95a5a6;'>আপনি দর্শক হিসেবে ম্যাচ দেখছেন...</p>";
+        handContainer.innerHTML = "<p style='color:#95a5a6;font-size:0.9rem;'>Spectating match...</p>";
     }
 }
 
@@ -265,7 +266,6 @@ function createCardDOM(card) {
     return div;
 }
 
-// ৭. অ্যাডভান্সড অ্যানিমেশন ইঞ্জিন (আপনার এবং অন্য প্লেয়ারদের জন্য)
 function playMyCard(cardIndex, cardData, cardElement) {
     const rect = cardElement.getBoundingClientRect();
     const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
@@ -293,9 +293,8 @@ function triggerOpponentPlayAnimation(cardData) {
     const flyingCard = createCardDOM(cardData);
     flyingCard.classList.add('flying-card');
     
-    // উপর থেকে কার্ড উঁকি দিয়ে আসবে (যেহেতু অপোনেন্ট উপরে থাকে)
     flyingCard.style.left = `50%`;
-    flyingCard.style.top = `-200px`;
+    flyingCard.style.top = `-150px`;
     document.getElementById('animation-layer').appendChild(flyingCard);
 
     setTimeout(() => {
@@ -321,7 +320,7 @@ function triggerOpponentDrawAnimation() {
 
     setTimeout(() => {
         flyingCard.style.left = `50%`;
-        flyingCard.style.top = `-200px`;
+        flyingCard.style.top = `-150px`;
         flyingCard.style.opacity = '0';
     }, 20);
 
@@ -331,7 +330,6 @@ function triggerOpponentDrawAnimation() {
     }, 550);
 }
 
-// ৮. ডেটাবেস আপডেট ও টার্ন ক্যালকুলেশন
 function submitCardToFirebase(cardIndex, cardData) {
     let myCards = [...gameState.players[myPlayerId].cards];
     myCards.splice(cardIndex, 1);
@@ -340,7 +338,7 @@ function submitCardToFirebase(cardIndex, cardData) {
     let turnOrder = [...gameState.turnOrder];
 
     if (myCards.length === 0) {
-        alert("আপনার সব কার্ড শেষ! আপনি এখন দর্শক।");
+        alert("Victory! You out of cards. Switching to spectator mode.");
         updates[`rooms/${currentRoomCode}/spectators/${myPlayerId}`] = { name: myName, id: myPlayerId };
         updates[`rooms/${currentRoomCode}/players/${myPlayerId}`] = null;
         myRole = 'spectator';
@@ -351,10 +349,9 @@ function submitCardToFirebase(cardIndex, cardData) {
     }
 
     if (turnOrder.length <= 1) {
-        alert("খেলা শেষ! লবিতে ফিরে যাওয়া হচ্ছে।");
+        alert("Game Over! Returning to lobby.");
         updates[`rooms/${currentRoomCode}/status`] = "lobby";
     } else {
-        // সেফ টার্ন ইনডেক্স ক্যালকুলেশন
         let nextTurn = gameState.currentTurn;
         if (nextTurn >= turnOrder.length) nextTurn = 0;
         else nextTurn = (nextTurn + 1) % turnOrder.length;
@@ -370,10 +367,10 @@ function submitCardToFirebase(cardIndex, cardData) {
 
 function drawCardFromDeck() {
     const turnOrder = gameState.turnOrder || [];
-    if (turnOrder[gameState.currentTurn] !== myPlayerId || myRole !== 'player') return alert("আপনার টার্ন নয়!");
+    if (turnOrder[gameState.currentTurn] !== myPlayerId || myRole !== 'player') return alert("Not your turn!");
 
     let deck = [...(gameState.deck || [])];
-    if (deck.length === 0) return alert("ডেক খালি!");
+    if (deck.length === 0) return alert("Deck is empty!");
 
     const drawnCard = deck.pop();
     let myCards = [...(gameState.players[myPlayerId].cards || [])];
