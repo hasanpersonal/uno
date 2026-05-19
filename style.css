@@ -1,288 +1,397 @@
-/* =========================================================
-   CYBER UNO MULTIPLAYER - PREMIUM CYBERPUNK STYLESHEET
-   ========================================================= */
-
+/* গ্লোবাল স্টাইল এবং রিসেট */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'Rajdhani', sans-serif;
-    user-select: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-    background: #020206;
-    color: #fff;
-    overflow: hidden;
-    touch-action: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-}
-
-/* Main Container Frame */
-.cyber-container {
-    position: relative;
-    width: 100%;
-    max-width: 480px; 
+    background: radial-gradient(circle, #2c3e50, #1a252f);
+    color: white;
     height: 100vh;
-    max-height: 850px;
-    background: radial-gradient(circle at center, #0a0a18 0%, #020206 100%);
-    border-left: 2px solid rgba(0, 240, 255, 0.3);
-    border-right: 2px solid rgba(255, 0, 85, 0.3);
-    box-shadow: 0 0 40px rgba(0, 240, 255, 0.1);
-    overflow: hidden;
+    overflow: hidden; /* মূল স্ক্রিন স্ক্রল হবে না */
 }
 
-.hidden { display: none !important; }
+#app-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
 
-/* =========================================================
-   COMMON SCREENS & FULL OVERLAYS
-   ========================================================= */
-.screen-overlay {
+/* স্ক্রিন ভিজিবিলিটি কন্ট্রোল */
+.screen {
+    width: 100%;
+    height: 100%;
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(2, 2, 6, 0.95);
-    backdrop-filter: blur(10px);
-    z-index: 100;
+    top: 0;
+    left: 0;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.active {
     display: flex;
     flex-direction: column;
+}
+
+/* =========================================
+   ১. এন্ট্রি/লগিন স্ক্রিন ডিজাইন
+========================================= */
+#entry-screen {
     justify-content: center;
     align-items: center;
-    padding: 20px;
-    overflow-y: auto;
 }
 
-/* Cyber Logo System */
-.glow-logo h1 {
-    font-family: 'Orbitron', sans-serif;
+.glass-panel {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 40px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    width: 400px;
+    max-width: 90%;
+}
+
+.glass-panel h1 {
     font-size: 3rem;
-    font-weight: 900;
-    color: #fff;
-    text-shadow: 0 0 15px #00f0ff, 0 0 30px #00f0ff;
-    margin-bottom: 5px;
-    text-align: center;
-}
-.glow-logo h1 span {
-    color: #ff0055;
-    text-shadow: 0 0 15px #ff0055, 0 0 30px #ff0055;
-}
-.subtitle {
-    font-size: 0.9rem;
-    color: #8da1d6;
-    letter-spacing: 2px;
-    text-align: center;
-    margin-bottom: 35px;
+    margin-bottom: 30px;
+    color: #f1c40f;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
 }
 
-/* Auth & Forms */
-.auth-tabs { width: 100%; max-width: 320px; }
-.input-group { width: 100%; margin-bottom: 20px; }
+.input-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
 .input-group label {
     display: block;
-    color: #00f0ff;
-    font-size: 0.85rem;
     margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-input[type="text"], input[type="number"] {
-    width: 100%;
-    background: rgba(0, 240, 255, 0.05);
-    border: 1px solid rgba(0, 240, 255, 0.3);
-    color: #fff;
-    padding: 12px 15px;
-    font-size: 1.1rem;
-    font-weight: 700;
-    border-radius: 6px;
-    outline: none;
-    transition: 0.3s ease;
-    text-align: center;
-}
-input:focus {
-    border-color: #00f0ff;
-    box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+    font-weight: bold;
 }
 
-/* Cyber Buttons Setup */
-.btn-premium {
+.input-group input {
     width: 100%;
-    padding: 14px;
-    margin: 8px 0;
-    font-size: 1.05rem;
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 700;
+    padding: 12px;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
+    font-size: 1rem;
+    outline: none;
+}
+
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 30px;
+}
+
+.btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
     cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.2s ease;
-}
-.host-btn { background: #00f0ff; color: #000; box-shadow: 0 0 15px rgba(0, 240, 255, 0.4); }
-.join-btn { background: #ff0055; color: #fff; box-shadow: 0 0 15px rgba(255, 0, 85, 0.4); }
-.spectator-btn-init { background: transparent; color: #ffea00; border: 1px solid #ffea00; box-shadow: 0 0 10px rgba(255, 234, 0, 0.2); }
-.lobby-back-btn { background: #a200ff; color: #fff; box-shadow: 0 0 15px rgba(162, 0, 255, 0.4); }
-.start-match-btn { background: #00ff66; color: #000; box-shadow: 0 0 15px rgba(0, 255, 102, 0.4); margin-top: 15px; }
-.btn-premium:active { transform: scale(0.96); }
-
-.divider { text-align: center; margin: 15px 0; position: relative; width: 100%; }
-.divider::before, .divider::after { content: ''; position: absolute; top: 50%; width: 42%; height: 1px; background: rgba(255, 255, 255, 0.15); }
-.divider::before { left: 0; } .divider::after { right: 0; }
-.divider span { color: #8da1d6; font-size: 0.85rem; background: #020206; padding: 0 10px; }
-
-/* =========================================================
-   LOBBY COMPONENT STYLES
-   ========================================================= */
-.lobby-header { text-align: center; margin-bottom: 20px; }
-.text-glow { color: #ffea00; text-shadow: 0 0 10px #ffea00; font-size: 1.8rem; letter-spacing: 3px; font-family: 'Orbitron', sans-serif;}
-.badge { display: inline-block; background: rgba(0, 240, 255, 0.15); border: 1px solid #00f0ff; color: #00f0ff; padding: 3px 12px; font-size: 0.8rem; border-radius: 4px; margin-top: 5px; font-weight: bold; letter-spacing: 1px;}
-
-.lobby-grid { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 15px; }
-.players-panel, .chat-panel, .lobby-leaderboard-box { 
-    background: rgba(20, 20, 45, 0.5); 
-    border: 1px solid rgba(0, 240, 255, 0.15); 
-    border-radius: 8px; 
-    padding: 15px; 
-}
-.players-panel h3, .chat-panel h3, .lobby-leaderboard-box h3 { 
-    font-family: 'Orbitron', sans-serif; 
-    color: #8da1d6; 
-    font-size: 0.95rem; 
-    margin-bottom: 10px; 
-    border-bottom: 1px solid rgba(141, 161, 214, 0.2); 
-    padding-bottom: 6px; 
-    letter-spacing: 1px;
+    transition: transform 0.2s, opacity 0.2s;
 }
 
-#players-list, #lobby-leaderboard-list { list-style-position: inside; max-height: 110px; overflow-y: auto; }
-#players-list li, #lobby-leaderboard-list li { font-size: 1.1rem; padding: 5px 8px; color: #fff; background: rgba(255,255,255,0.03); margin-bottom: 4px; border-radius: 4px; border-left: 3px solid #ff0055;}
-#players-list li i { margin-right: 8px; color: #00f0ff; }
-
-.pulse-text { color: #ff0055; font-size: 0.9rem; margin-top: 10px; text-align: center; animation: pulse 1.5s infinite; font-weight: bold;}
-@keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
-
-/* Global Chat Layout */
-.chat-box { height: 110px; overflow-y: auto; font-size: 0.95rem; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; text-align: left; padding: 5px;}
-.chat-input-area { display: flex; gap: 8px; }
-.chat-input-area input { flex: 1; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; color: #fff; outline: none;}
-.chat-input-area input:focus { border-color: #00f0ff; }
-.chat-input-area button { background: #00f0ff; border: none; color: #000; padding: 0 16px; border-radius: 4px; cursor: pointer; transition: 0.2s;}
-.chat-input-area button:active { transform: scale(0.9); }
-
-/* =========================================================
-   LIVE GAME BOARD (HUD CORE)
-   ========================================================= */
-.game-hud { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; padding-bottom: 60px; }
-.hud-header { display: flex; justify-content: space-between; align-items: center; background: rgba(2, 2, 6, 0.9); border-bottom: 2px solid #00f0ff; padding: 12px 15px; font-family: 'Orbitron', sans-serif; font-size: 0.95rem; z-index: 10; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-#timer-box { color: #ffea00; } 
-.turn-indicator { color: #00f0ff; font-weight: 700; text-shadow: 0 0 8px rgba(0, 240, 255, 0.6); } 
-#direction-box { color: #ff0055; }
-
-.spec-alert { background: rgba(255, 234, 0, 0.15); color: #ffea00; border-bottom: 1px solid #ffea00; text-align: center; padding: 6px; font-size: 0.85rem; font-weight: bold; letter-spacing: 1px; }
-
-/* Opponents Display */
-.opponents-grid { display: flex; justify-content: center; gap: 12px; padding: 12px; flex-wrap: wrap; max-height: 110px; overflow-y: auto;}
-.opp-avatar { display: flex; flex-direction: column; align-items: center; transition: 0.3s; opacity: 0.7;}
-.opp-card-back { width: 38px; height: 55px; background: linear-gradient(135deg, #151530, #050510); border: 2px solid rgba(141, 161, 214, 0.5); border-radius: 6px; display: flex; justify-content: center; align-items: center; font-size: 0.9rem; font-family: 'Orbitron', sans-serif; font-weight: bold; color: #00f0ff; margin-bottom: 4px; box-shadow: 0 3px 6px rgba(0,0,0,0.3); }
-.opp-name { font-size: 0.8rem; color: #fff; font-weight: 500; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.opp-avatar.active-turn { opacity: 1; transform: scale(1.05);}
-.opp-avatar.active-turn .opp-card-back { border-color: #00f0ff; box-shadow: 0 0 15px rgba(0, 240, 255, 0.6); background: linear-gradient(135deg, #00f0ff, #0a0a18); color: #000;}
-
-/* Central Gameplay Arena */
-.center-table-area { flex: 1; display: flex; justify-content: center; align-items: center; gap: 35px; position: relative;}
-.uno-card { width: 78px; height: 118px; border-radius: 10px; display: flex; justify-content: center; align-items: center; position: relative; font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 1.8rem; text-shadow: 2px 2px 0 #000; border: 3px solid #fff;}
-.deck-back { background: #111; border-color: #ff0055; color: #ff0055; cursor: pointer; box-shadow: 0 0 15px rgba(255, 0, 85, 0.3); }
-.deck-back:active { transform: scale(0.95); }
-.deck-back .inner-circle { width: 58px; height: 88px; border: 2px dashed #ff0055; border-radius: 6px; display: flex; justify-content: center; align-items: center; transform: rotate(-15deg); font-size: 1.2rem;}
-.empty-pile { border: 2px dashed rgba(255, 255, 255, 0.2); color: rgba(255, 255, 255, 0.2); background: transparent; font-size: 1rem;}
-
-/* =========================================================
-   IN-GAME MATCH CHAT FLOATING WIDGET
-   ========================================================= */
-.ingame-chat-container { position: absolute; bottom: 185px; right: 12px; width: 210px; background: rgba(6, 6, 18, 0.92); border: 1px solid rgba(0, 240, 255, 0.4); border-radius: 8px; z-index: 50; backdrop-filter: blur(6px); box-shadow: 0 5px 20px rgba(0,0,0,0.6); transition: all 0.3s ease;}
-.ingame-chat-header { background: rgba(0, 240, 255, 0.15); padding: 8px 12px; font-size: 0.8rem; font-weight: bold; color: #00f0ff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; }
-.ingame-chat-box { height: 95px; overflow-y: auto; padding: 6px 10px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; text-align: left;}
-.ingame-chat-input-area { display: flex; padding: 6px; border-top: 1px solid rgba(0, 240, 255, 0.15); background: rgba(0,0,0,0.2); border-radius: 0 0 8px 8px;}
-.ingame-chat-input-area input { flex: 1; padding: 6px 8px; font-size: 0.8rem; border-radius: 4px 0 0 4px; background: #000; border: 1px solid rgba(255,255,255,0.1); color: #fff; outline: none;}
-.ingame-chat-input-area button { background: #00f0ff; color: #000; border: none; padding: 0 12px; border-radius: 0 4px 4px 0; cursor: pointer; font-size: 0.75rem;}
-
-/* =========================================================
-   PLAYER MATRIX & INTERACTIVE CARDS
-   ========================================================= */
-.player-hand-container { position: absolute; bottom: 60px; left: 0; right: 0; padding: 12px; background: linear-gradient(to top, rgba(2,2,6,1) 80%, rgba(2,2,6,0) 100%); z-index: 10; }
-.hand-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px;}
-#hand-count-lbl { color: #00f0ff; font-size: 0.85rem; font-weight: bold; letter-spacing: 1px; font-family: 'Orbitron', sans-serif;}
-.btn-uno-shout { background: #ff0055; color: #fff; border: none; padding: 4px 14px; font-weight: 900; font-family: 'Orbitron', sans-serif; font-size: 0.85rem; border-radius: 4px; box-shadow: 0 0 10px #ff0055; cursor: pointer; animation: pulse 1.2s infinite; }
-
-.cards-scroll-wrapper { display: flex; overflow-x: auto; gap: 8px; padding: 10px 4px 15px 4px; scroll-behavior: smooth;}
-.playable-card { min-width: 60px; height: 92px; border-radius: 8px; display: flex; justify-content: center; align-items: center; font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 1.5rem; cursor: pointer; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s; border: 3px solid #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.4); background: #fff; position: relative;}
-.playable-card:hover { transform: translateY(-12px) scale(1.05); z-index: 20; box-shadow: 0 8px 20px rgba(0,0,0,0.6); }
-
-/* Card Matrices Core Colors */
-.card-red { background: linear-gradient(135deg, #ff0055 0%, #990033 100%); border-color: #ff0055; color: #fff; }
-.card-blue { background: linear-gradient(135deg, #00f0ff 0%, #007799 100%); border-color: #00f0ff; color: #000; text-shadow: none;}
-.card-green { background: linear-gradient(135deg, #00ff66 0%, #009933 100%); border-color: #00ff66; color: #000; text-shadow: none;}
-.card-yellow { background: linear-gradient(135deg, #ffea00 0%, #998800 100%); border-color: #ffea00; color: #000; text-shadow: none;}
-.card-wild { background: linear-gradient(135deg, #333344 0%, #111118 100%); border-color: #fff; color: #fff; text-shadow: 0 0 8px #fff; }
-
-/* Wild Matrix Popup Overlay */
-.color-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(2,2,6,0.92); z-index: 200; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(4px);}
-.color-overlay h4 { font-family: 'Orbitron', sans-serif; color: #fff; text-shadow: 0 0 10px #00f0ff; margin-bottom: 15px;}
-.color-picker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.color-choice { width: 75px; height: 75px; border: 3px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5);}
-.color-choice:active { transform: scale(0.9); }
-.btn-red { background: #ff0055; box-shadow: 0 0 15px rgba(255,0,85,0.4); } 
-.btn-blue { background: #00f0ff; box-shadow: 0 0 15px rgba(0,240,255,0.4); } 
-.btn-yellow { background: #ffea00; box-shadow: 0 0 15px rgba(255,234,0,0.4); } 
-.btn-green { background: #00ff66; box-shadow: 0 0 15px rgba(0,255,102,0.4); }
-
-/* =========================================================
-   GAMEOVER & RANKING PANEL
-   ========================================================= */
-.winner-announcement { font-size: 1.6rem; color: #ffea00; margin: 8px 0 20px 0; text-shadow: 0 0 12px #ffea00; font-family: 'Orbitron', sans-serif; font-weight: bold; letter-spacing: 1px;}
-.final-score-panel { background: rgba(25, 25, 50, 0.6); padding: 20px; border-radius: 10px; width: 100%; max-width: 320px; margin-bottom: 20px; border: 1px solid rgba(0, 240, 255, 0.3); box-shadow: 0 0 20px rgba(0, 240, 255, 0.1); }
-.final-score-panel h3 { font-family: 'Orbitron', sans-serif; color: #00f0ff; margin-bottom: 12px; text-align: center; letter-spacing: 1px; font-size: 1.1rem;}
-#leaderboard-list { list-style: none; text-align: left; }
-#leaderboard-list li { padding: 8px 12px; background: rgba(255,255,255,0.04); margin-bottom: 6px; border-radius: 5px; font-size: 1.1rem; display: flex; justify-content: space-between; font-weight: bold;}
-
-/* =========================================================
-   CAR GAME STYLE RACING PROGRESS FOOTER
-   ========================================================= */
-.game-tracker-footer { 
-    position: absolute; 
-    bottom: 0; left: 0; right: 0; 
-    height: 60px; 
-    background: rgba(4, 4, 12, 0.98); 
-    border-top: 2px solid rgba(0, 240, 255, 0.25); 
-    display: flex; 
-    align-items: center; 
-    padding: 0 15px; 
-    z-index: 20; 
-}
-.tracker-wrapper { width: 100%; display: flex; align-items: center; gap: 15px; }
-.km-display { display: flex; flex-direction: column; min-width: 75px; text-align: left;}
-.km-display .label { font-size: 0.65rem; color: #8da1d6; font-family: 'Orbitron', sans-serif; letter-spacing: 1px;}
-.km-display .value { font-size: 1.05rem; color: #00f0ff; font-weight: 900; font-family: 'Orbitron', sans-serif; }
-
-.tracker-lane-container { flex: 1; position: relative; height: 18px; }
-.lane-line { position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: dashed rgba(255, 255, 255, 0.15); transform: translateY(-50%); }
-.lane-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-
-/* Racing Progress Dot Animation */
-.player-progress-dot { 
-    position: absolute; 
-    top: 50%; 
-    width: 13px; 
-    height: 13px; 
-    border-radius: 50%; 
-    transform: translate(-50%, -50%); 
-    box-shadow: 0 0 10px currentColor; 
-    transition: left 0.4s cubic-bezier(0.25, 1, 0.5, 1); 
-    border: 2px solid #fff;
+.btn:active {
+    transform: scale(0.95);
 }
 
-/* Scrollbar Tweaks */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
-::-webkit-scrollbar-thumb { background: #00f0ff; border-radius: 10px; }
+.btn:hover {
+    opacity: 0.9;
+}
+
+.btn.primary { background: #e74c3c; color: white; }
+.btn.secondary { background: #3498db; color: white; }
+.btn.spectator { background: #95a5a6; color: white; }
+
+/* =========================================
+   ২. লবি স্ক্রিন ডিজাইন
+========================================= */
+.lobby-header {
+    text-align: center;
+    padding: 20px;
+    background: rgba(0,0,0,0.3);
+}
+
+.highlight-text {
+    color: #f1c40f;
+    font-weight: bold;
+}
+
+.lobby-content {
+    display: flex;
+    justify-content: center;
+    gap: 50px;
+    padding: 40px;
+    flex: 1;
+}
+
+.user-list {
+    list-style: none;
+    background: rgba(255,255,255,0.05);
+    padding: 20px;
+    border-radius: 10px;
+    min-width: 250px;
+    min-height: 300px;
+}
+
+.user-list li {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    font-size: 1.1rem;
+}
+
+.lobby-footer {
+    text-align: center;
+    padding: 20px;
+}
+
+/* =========================================
+   ৩. গেম স্ক্রিন এবং কার্ড ডিজাইন
+========================================= */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 30px;
+    background: rgba(0,0,0,0.4);
+}
+
+.turn-order-list {
+    font-size: 0.9rem;
+}
+
+#player-turn-order span {
+    margin-right: 10px;
+    padding: 5px 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+}
+
+.game-board {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* সেন্টারে মেইন কার্ড এবং ড্র কার্ড (২:১ অনুপাতে সাজানো) */
+.center-table {
+    display: flex;
+    gap: 40px;
+    align-items: center;
+}
+
+/* রিয়েল কার্ডের বেসিক শেপ */
+.uno-card {
+    width: 120px;
+    height: 180px;
+    background-color: white;
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+    position: relative;
+    user-select: none;
+    flex-shrink: 0; /* কার্ড স্কুইজ হবে না */
+}
+
+/* কার্ডের ভেতরের রঙিন অংশ */
+.card-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+/* UNO কার্ডের মাঝখানের সাদা ডিম্বাকার (Oval) শেপ */
+.card-inner::before {
+    content: '';
+    position: absolute;
+    width: 85%;
+    height: 95%;
+    background: white;
+    border-radius: 50% / 40%;
+    transform: rotate(-25deg);
+    z-index: 1;
+}
+
+/* কার্ডের ভ্যালু (মাঝখানের বড় টেক্সট) */
+.card-value {
+    position: relative;
+    z-index: 2;
+    font-size: 4rem;
+    font-weight: 900;
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+}
+
+/* কার্ডের কোণার ছোট টেক্সট */
+.card-corner {
+    position: absolute;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 1px black;
+    z-index: 3;
+}
+
+.corner-top-left { top: 12px; left: 15px; }
+.corner-bottom-right { bottom: 12px; right: 15px; transform: rotate(180deg); }
+
+/* রঙের ক্লাসগুলো */
+.color-red .card-inner { background-color: #ff5555; }
+.color-red .card-value { color: #ff5555; }
+
+.color-blue .card-inner { background-color: #3498db; }
+.color-blue .card-value { color: #3498db; }
+
+.color-green .card-inner { background-color: #2ecc71; }
+.color-green .card-value { color: #2ecc71; }
+
+.color-yellow .card-inner { background-color: #f1c40f; }
+.color-yellow .card-value { color: #f1c40f; }
+
+.color-black .card-inner { background-color: #2c3e50; }
+.color-black .card-value { color: white; }
+
+/* ড্র ডেক (উল্টানো কার্ড) */
+.draw-deck .uno-card {
+    background-color: white;
+    cursor: pointer;
+}
+.draw-deck .card-inner {
+    background-color: #2c3e50;
+    border: 2px solid #e74c3c;
+}
+.draw-deck .card-inner::before {
+    background: #e74c3c;
+    border-radius: 50% / 30%;
+}
+.draw-deck .card-value {
+    color: #f1c40f;
+    font-size: 2.5rem;
+    transform: rotate(-25deg);
+}
+
+/* প্লেয়ারের কার্ড এরিয়া (নিচে) */
+.player-hand-area {
+    width: 100%;
+    padding: 20px;
+    background: rgba(0,0,0,0.5);
+    border-top: 3px solid rgba(255,255,255,0.1);
+}
+
+.cards-container {
+    display: flex;
+    flex-wrap: wrap; /* জায়গা না পেলে পরের লাইনে যাবে */
+    justify-content: center;
+    gap: 15px;
+    max-height: 35vh; /* উচ্চতা ফিক্সড, বেশি হলে স্ক্রল হবে */
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.cards-container .uno-card {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.cards-container .uno-card:hover {
+    transform: translateY(-15px); /* হোভার করলে একটু উপরে উঠবে */
+}
+
+/* =========================================
+   ৪. অ্যানিমেশন (উড়ে যাওয়ার জন্য)
+========================================= */
+#animation-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none; /* ক্লিকের সমস্যা করবে না */
+    z-index: 1000;
+}
+
+.flying-card {
+    position: absolute;
+    transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    z-index: 1001;
+}
+
+/* =========================================
+   ৫. চ্যাটবক্স ডিজাইন
+========================================= */
+.chat-box {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    height: 400px;
+    background: rgba(25, 30, 40, 0.9);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    z-index: 500;
+}
+
+.chat-header {
+    padding: 10px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 10px 10px 0 0;
+    font-weight: bold;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.9rem;
+}
+
+.chat-message {
+    background: rgba(255,255,255,0.1);
+    padding: 8px;
+    border-radius: 5px;
+}
+
+.chat-input-area {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.chat-input-area input {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 5px 0 0 5px;
+    outline: none;
+}
+
+.btn-send {
+    padding: 8px 15px;
+    background: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    font-weight: bold;
+}
