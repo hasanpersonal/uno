@@ -1,8 +1,8 @@
-// Firebase Configuration
+// Firebase Configuration (Aponar Asia Server Link Shoho)
 const firebaseConfig = {
     apiKey: "AIzaSyCKqsxIC2aGBR0UnejiXlIaJeKAfdW_Zp0",
     authDomain: "online-ha.firebaseapp.com",
-    databaseURL: "https://online-ha-default-rtdb.asia-southeast1.firebasedatabase.app", // <-- LINK UPDATED FOR ASIA SERVER
+    databaseURL: "https://online-ha-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "online-ha",
     storageBucket: "online-ha.firebasestorage.app",
     messagingSenderId: "1033988386517",
@@ -10,12 +10,9 @@ const firebaseConfig = {
     measurementId: "G-T6GYPQT874"
 };
 
-
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// DOM Elements
 const screens = {
     lobby: document.getElementById('lobby-screen'),
     waiting: document.getElementById('waiting-room'),
@@ -26,14 +23,10 @@ let myPlayerId = "";
 let currentRoomId = "";
 let isHost = false;
 
-// Game Config
 const UNO_COLORS = ["red", "blue", "green", "yellow"];
 const UNO_VALUES = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse"];
 
-// Utility Functions
-function generateRandomId() {
-    return Math.random().toString(36).substr(2, 9);
-}
+function generateRandomId() { return Math.random().toString(36).substr(2, 9); }
 
 function generateRandomCard() {
     const color = UNO_COLORS[Math.floor(Math.random() * UNO_COLORS.length)];
@@ -46,9 +39,9 @@ function switchScreen(screenName) {
     screens[screenName].style.display = 'block';
 }
 
-// 1. CREATE ROOM
+// CREATE ROOM (Updated)
 document.getElementById('btn-create').addEventListener('click', () => {
-    const name = document.getElementById('player-name').value.trim();
+    const name = document.getElementById('host-name').value.trim();
     if (!name) return alert("Enter your name!");
 
     const roomId = Math.floor(1000 + Math.random() * 9000).toString();
@@ -60,7 +53,7 @@ document.getElementById('btn-create').addEventListener('click', () => {
         status: "waiting",
         hostId: myPlayerId,
         turnIndex: 0,
-        direction: 1, // 1 for forward, -1 for reverse
+        direction: 1, 
         playerOrder: [myPlayerId],
         players: {
             [myPlayerId]: { name: name, cards: [] }
@@ -74,9 +67,9 @@ document.getElementById('btn-create').addEventListener('click', () => {
     });
 });
 
-// 2. JOIN ROOM
+// JOIN ROOM (Updated)
 document.getElementById('btn-join').addEventListener('click', () => {
-    const name = document.getElementById('player-name').value.trim();
+    const name = document.getElementById('join-name').value.trim();
     const roomId = document.getElementById('room-code-input').value.trim();
     if (!name || !roomId) return alert("Enter Name and Room Code!");
 
@@ -103,20 +96,18 @@ document.getElementById('btn-join').addEventListener('click', () => {
     });
 });
 
-// 3. START GAME (Host Only)
+// START GAME
 document.getElementById('btn-start').addEventListener('click', () => {
     database.ref('rooms/' + currentRoomId).once('value', snapshot => {
         let roomData = snapshot.val();
         let updates = {};
 
-        // Deal 7 cards to each player
         roomData.playerOrder.forEach(pid => {
             let startingHand = [];
             for(let i=0; i<7; i++) startingHand.push(generateRandomCard());
             updates['/players/' + pid + '/cards'] = startingHand;
         });
 
-        // Set starting card (Only numbers to be safe)
         let firstCard = generateRandomCard();
         while(["Skip", "Reverse"].includes(firstCard.value)) {
             firstCard = generateRandomCard();
@@ -129,13 +120,12 @@ document.getElementById('btn-start').addEventListener('click', () => {
     });
 });
 
-// 4. LIVE DATABASE LISTENER
+// DATABASE LISTENER
 function listenToRoom() {
     database.ref('rooms/' + currentRoomId).on('value', snapshot => {
         const data = snapshot.val();
         if (!data) return;
 
-        // WAITING ROOM LOGIC
         if (data.status === "waiting") {
             const list = document.getElementById('players-list');
             list.innerHTML = "";
@@ -145,33 +135,28 @@ function listenToRoom() {
                 list.appendChild(li);
             });
         } 
-        // GAME PLAY LOGIC
         else if (data.status === "playing") {
             if (screens.game.style.display === 'none') {
                 switchScreen('game');
                 document.getElementById('game-room-id').innerText = currentRoomId;
             }
-
             renderGame(data);
         }
     });
 }
 
-// 5. RENDER GAME BOARD
+// RENDER GAME BOARD (Updated with Animation & Span)
 function renderGame(data) {
     const turnPlayerId = data.playerOrder[data.turnIndex];
     const isMyTurn = (turnPlayerId === myPlayerId);
 
-    // Turn Indicator Update
     document.getElementById('turn-indicator').innerText = isMyTurn ? "🔥 YOUR TURN 🔥" : `${data.players[turnPlayerId].name}'s Turn`;
     document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#ffaa00";
 
-    // Center Card Update
     const centerCardDiv = document.getElementById('current-card');
     centerCardDiv.className = `uno-card ${data.currentCard.color}`;
-    centerCardDiv.innerText = data.currentCard.value;
+    centerCardDiv.innerHTML = `<span>${data.currentCard.value}</span>`;
 
-    // Opponents Status Update
     const opponentsArea = document.getElementById('opponents-area');
     opponentsArea.innerHTML = "";
     data.playerOrder.forEach(pid => {
@@ -182,31 +167,34 @@ function renderGame(data) {
         }
     });
 
-    // My Hand Update
     const myHandDiv = document.getElementById('my-cards');
     myHandDiv.innerHTML = "";
     let myCards = data.players[myPlayerId].cards || [];
-    
-    // Firebase returns arrays as objects sometimes if indexes are messed up, formatting it:
     let myCardsArray = Array.isArray(myCards) ? myCards : Object.values(myCards);
 
     myCardsArray.forEach((card, index) => {
         if (!card) return;
         let cardDiv = document.createElement('div');
         cardDiv.className = `uno-card my-card-item ${card.color}`;
-        cardDiv.innerText = card.value;
+        cardDiv.innerHTML = `<span>${card.value}</span>`;
+        
+        cardDiv.style.animationDelay = `${index * 0.05}s`;
 
         cardDiv.onclick = () => {
             if (!isMyTurn) return;
+
+            centerCardDiv.classList.remove('play-animation');
+            void centerCardDiv.offsetWidth; 
+            centerCardDiv.classList.add('play-animation');
+
             playCard(card, index, data);
         };
         myHandDiv.appendChild(cardDiv);
     });
 }
 
-// 6. PLAY CARD LOGIC
+// PLAY CARD LOGIC
 function playCard(card, cardIndex, roomData) {
-    // Validation
     let isColorMatch = card.color === roomData.currentCard.color;
     let isValueMatch = card.value === roomData.currentCard.value;
 
@@ -218,9 +206,8 @@ function playCard(card, cardIndex, roomData) {
         ? roomData.players[myPlayerId].cards 
         : Object.values(roomData.players[myPlayerId].cards);
         
-    myCards.splice(cardIndex, 1); // Remove card from hand
+    myCards.splice(cardIndex, 1);
 
-    // Winner Check
     if (myCards.length === 0) {
         alert("🎉 YOU WON! 🎉");
     }
@@ -229,10 +216,8 @@ function playCard(card, cardIndex, roomData) {
     let direction = roomData.direction || 1;
     const totalPlayers = roomData.playerOrder.length;
 
-    // Special Cards Logic
     if (card.value === "Reverse") {
         if (totalPlayers === 2) {
-            // In 2 player, Reverse acts like a Skip
             nextTurnIndex = (nextTurnIndex + direction) % totalPlayers;
         } else {
             direction *= -1;
@@ -241,7 +226,6 @@ function playCard(card, cardIndex, roomData) {
         nextTurnIndex = (nextTurnIndex + direction) % totalPlayers;
     }
 
-    // Move to next player
     nextTurnIndex = (nextTurnIndex + direction) % totalPlayers;
     if (nextTurnIndex < 0) nextTurnIndex += totalPlayers;
 
@@ -253,7 +237,7 @@ function playCard(card, cardIndex, roomData) {
     });
 }
 
-// 7. DRAW CARD LOGIC
+// DRAW CARD LOGIC
 document.getElementById('btn-draw').addEventListener('click', () => {
     database.ref('rooms/' + currentRoomId).once('value', snapshot => {
         let roomData = snapshot.val();
