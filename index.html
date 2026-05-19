@@ -8,21 +8,27 @@
 </head>
 <body>
     <div class="container">
-        <!-- ১. Lobby Screen -->
         <div id="lobby-screen">
             <h1>🃏 UNO Multiplayer</h1>
-            <div class="box">
-                <input type="text" id="player-name" placeholder="Enter Your Name" autocomplete="off">
-                <button id="btn-create" class="btn green">Create New Game</button>
+            
+            <div class="lobby-layout">
+                <div class="box create-box">
+                    <h3>Create New Game</h3>
+                    <input type="text" id="host-name" placeholder="Enter Your Name" autocomplete="off">
+                    <button id="btn-create" class="btn green">Create Room</button>
+                </div>
                 
                 <div class="divider">OR</div>
                 
-                <input type="text" id="room-code-input" placeholder="Enter 4-Digit Room Code" autocomplete="off">
-                <button id="btn-join" class="btn blue">Join Game</button>
+                <div class="box join-box">
+                    <h3>Join Game</h3>
+                    <input type="text" id="join-name" placeholder="Enter Your Name" autocomplete="off">
+                    <input type="text" id="room-code-input" placeholder="Enter 4-Digit Room Code" autocomplete="off">
+                    <button id="btn-join" class="btn blue">Join Room</button>
+                </div>
             </div>
         </div>
 
-        <!-- ২. Waiting Room -->
         <div id="waiting-room" style="display: none;">
             <h1>Room Code: <span id="display-room-code" class="highlight"></span></h1>
             <div class="box">
@@ -33,28 +39,23 @@
             </div>
         </div>
 
-        <!-- ৩. Game Board -->
         <div id="game-board" style="display: none;">
             <div class="top-bar">
                 <div>Room: <span id="game-room-id"></span></div>
                 <div id="turn-indicator" class="turn-box">Waiting...</div>
             </div>
 
-            <!-- Opponents Status -->
             <div id="opponents-area" class="opponents-container"></div>
 
-            <!-- Center Play Area -->
             <div class="center-table">
                 <div class="deck-area">
-                    <button id="btn-draw" class="deck-btn">DRAW CARD<br>(+1)</button>
+                    <button id="btn-draw" class="deck-btn">DRAW<br>(+1)</button>
                 </div>
                 <div class="discard-area">
-                    <p>Current Card</p>
-                    <div id="current-card" class="uno-card">--</div>
+                    <div id="current-card" class="uno-card"><span>--</span></div>
                 </div>
             </div>
 
-            <!-- My Hand -->
             <div class="my-hand-section">
                 <h3>My Cards</h3>
                 <div id="my-cards" class="cards-container"></div>
@@ -62,11 +63,9 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     
-    <!-- Game Logic -->
     <script src="script.js"></script>
 </body>
 </html>
