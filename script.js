@@ -45,12 +45,12 @@ document.getElementById('btn-return-lobby').addEventListener('click', returnToLo
 function handleRoomAction(action) {
     const createName = document.getElementById('create-player-name').value.trim();
     const joinName = document.getElementById('join-player-name').value.trim();
-    const inputCode = document.getElementById('room-code').value.trim().toUpperCase();
+    const inputCode = document.getElementById('room-code').value.trim();
 
     if (action === 'create') {
         if (!createName) return alert("Please enter your name to create a room!");
         myName = createName;
-        currentRoomCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+        currentRoomCode = Math.floor(1000 + Math.random() * 9000).toString();
         isCreator = true;
         setupRoomInFirebase();
     } else {
