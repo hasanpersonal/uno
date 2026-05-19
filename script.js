@@ -28,7 +28,6 @@ const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
 const chatContainer = document.getElementById('chat-container');
 
-// Mobile Fullscreen and Address Bar Hiding Handler
 function enableFullscreen() {
     const docEl = document.documentElement;
     if (docEl.requestFullscreen) docEl.requestFullscreen();
@@ -36,17 +35,12 @@ function enableFullscreen() {
     else if (docEl.msRequestFullscreen) docEl.msRequestFullscreen();
 }
 
-// Event Listeners
 document.getElementById('btn-create-room').addEventListener('click', () => { enableFullscreen(); handleRoomAction('create'); });
 document.getElementById('btn-join-player').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join-player'); });
 document.getElementById('btn-join-spectator').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join-spectator'); });
 document.getElementById('btn-send-chat').addEventListener('click', sendChatMessage);
 document.getElementById('btn-start-game').addEventListener('click', startGame);
 document.getElementById('draw-pile').addEventListener('click', drawCardFromDeck);
-
-// Mobile Mobile Chat Toggle Engine
-document.getElementById('btn-toggle-chat').addEventListener('click', () => chatContainer.classList.remove('chat-closed'));
-document.getElementById('btn-close-chat').addEventListener('click', () => chatContainer.classList.add('chat-closed'));
 
 function handleRoomAction(action) {
     const createName = document.getElementById('create-player-name').value.trim();
@@ -109,7 +103,7 @@ function switchToScreen(screenType) {
 
     if (screenType === 'lobby') {
         lobbyScreen.classList.remove('hidden');
-        chatContainer.classList.remove('hidden');
+        chatContainer.classList.remove('hidden'); // চ্যাটবক্স নিচে দৃশ্যমান হবে
         document.getElementById('display-room-code').innerText = currentRoomCode;
     } else if (screenType === 'game') {
         gameScreen.classList.remove('hidden');
@@ -266,6 +260,7 @@ function createCardDOM(card) {
     return div;
 }
 
+// 2x অ্যানিমেশন সাইজিং যুক্ত করা হয়েছে
 function playMyCard(cardIndex, cardData, cardElement) {
     const rect = cardElement.getBoundingClientRect();
     const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
@@ -277,6 +272,7 @@ function playMyCard(cardIndex, cardData, cardElement) {
     document.getElementById('animation-layer').appendChild(flyingCard);
 
     setTimeout(() => {
+        flyingCard.classList.add('main-card-size'); // উড়ে যাওয়ার সময় কার্ডটি ২ গুণ বড় হবে
         flyingCard.style.left = `${mainPileRect.left}px`;
         flyingCard.style.top = `${mainPileRect.top}px`;
         flyingCard.style.transform = `rotate(${Math.random() * 20 - 10}deg)`;
@@ -292,14 +288,16 @@ function triggerOpponentPlayAnimation(cardData) {
     const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
     const flyingCard = createCardDOM(cardData);
     flyingCard.classList.add('flying-card');
+    flyingCard.classList.add('main-card-size'); // অপোনেন্টের কার্ড শুরু থেকেই ২ গুণ বড় থাকবে
     
     flyingCard.style.left = `50%`;
-    flyingCard.style.top = `-150px`;
+    flyingCard.style.top = `-250px`;
     document.getElementById('animation-layer').appendChild(flyingCard);
 
     setTimeout(() => {
         flyingCard.style.left = `${mainPileRect.left}px`;
         flyingCard.style.top = `${mainPileRect.top}px`;
+        flyingCard.style.transform = `rotate(${Math.random() * 20 - 10}deg)`;
     }, 20);
 
     setTimeout(() => {
