@@ -9,106 +9,108 @@
 <body>
     <div id="app-container">
         
-        <!-- 1. Entry / Login Screen -->
-        <section id="entry-screen" class="screen active">
-            <div class="glass-panel">
-                <h1>UNO Online</h1>
-                
-                <!-- Section for Creating Room -->
-                <div class="action-block">
-                    <h3>Create a New Room</h3>
-                    <div class="input-group">
-                        <label for="create-player-name">Your Name:</label>
-                        <input type="text" id="create-player-name" placeholder="Enter your name...">
-                    </div>
-                    <button id="btn-create-room" class="btn primary">Create Room</button>
-                </div>
-
-                <div class="divider">OR</div>
-
-                <!-- Section for Joining Room -->
-                <div class="action-block">
-                    <h3>Join Existing Room</h3>
-                    <div class="input-group">
-                        <label for="join-player-name">Your Name:</label>
-                        <input type="text" id="join-player-name" placeholder="Enter your name...">
-                    </div>
-                    <div class="input-group">
-                        <label for="room-code">Room Code:</label>
-                        <input type="text" id="room-code" placeholder="Enter 6-digit code...">
-                    </div>
-                    <div class="button-row">
-                        <button id="btn-join-player" class="btn secondary">Join as Player</button>
-                        <button id="btn-join-spectator" class="btn spectator">Join as Spectator</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 2. Lobby Screen -->
-        <section id="lobby-screen" class="screen hidden">
-            <div class="lobby-header">
-                <h2>Game Lobby</h2>
-                <div class="room-info">Room Code: <span id="display-room-code" class="highlight-text">---</span></div>
-            </div>
-            
-            <div class="lobby-content">
-                <div class="lobby-box">
-                    <h3>Players</h3>
-                    <ul id="lobby-players" class="user-list"></ul>
-                </div>
-                <div class="lobby-box">
-                    <h3>Spectators</h3>
-                    <ul id="lobby-spectators" class="user-list"></ul>
-                </div>
-            </div>
-
-            <div class="lobby-footer">
-                <button id="btn-start-game" class="btn primary hidden">Start Game</button>
-            </div>
-        </section>
-
-        <!-- 3. Game Screen -->
-        <section id="game-screen" class="screen hidden">
-            <!-- Top Bar -->
-            <div class="game-header">
-                <div class="current-turn-display">
-                    <h3>Turn: <span id="active-player-name" class="highlight-text">Waiting...</span></h3>
-                </div>
-                <div class="turn-order-list">
-                    <div id="player-turn-order"></div>
-                </div>
-            </div>
-
-            <!-- Main Board -->
-            <div class="game-board">
-                <div class="center-table">
-                    <!-- Main Card Pile -->
-                    <div id="main-pile" class="card-slot main-card"></div>
+        <!-- Screens Area (Top Part) -->
+        <div id="screens-area">
+            <!-- 1. Entry / Login Screen -->
+            <section id="entry-screen" class="screen active">
+                <div class="glass-panel">
+                    <h1>UNO Online</h1>
                     
-                    <!-- Draw Card Pile -->
-                    <div id="draw-pile" class="card-slot draw-deck">
-                        <div class="card-back">UNO</div>
+                    <div class="action-block">
+                        <h3>Create a New Room</h3>
+                        <div class="input-group">
+                            <label for="create-player-name">Your Name:</label>
+                            <input type="text" id="create-player-name" placeholder="Enter your name...">
+                        </div>
+                        <button id="btn-create-room" class="btn primary">Create Room</button>
+                    </div>
+
+                    <div class="divider">OR</div>
+
+                    <div class="action-block">
+                        <h3>Join Existing Room</h3>
+                        <div class="input-group">
+                            <label for="join-player-name">Your Name:</label>
+                            <input type="text" id="join-player-name" placeholder="Enter your name...">
+                        </div>
+                        <div class="input-group">
+                            <label for="room-code">Room Code:</label>
+                            <input type="text" id="room-code" placeholder="Enter 6-digit code...">
+                        </div>
+                        <div class="button-row">
+                            <button id="btn-join-player" class="btn secondary">Join as Player</button>
+                            <button id="btn-join-spectator" class="btn spectator">Join as Spectator</button>
+                        </div>
                     </div>
                 </div>
+            </section>
+
+            <!-- 2. Lobby Screen -->
+            <section id="lobby-screen" class="screen hidden">
+                <div class="lobby-header">
+                    <h2>Game Lobby</h2>
+                    <div class="room-info">Room Code: <span id="display-room-code" class="highlight-text">---</span></div>
+                </div>
                 
-                <div id="animation-layer"></div>
-            </div>
+                <div class="lobby-content">
+                    <div class="lobby-box">
+                        <h3>Players</h3>
+                        <ul id="lobby-players" class="user-list"></ul>
+                    </div>
+                    <div class="lobby-box">
+                        <h3>Spectators</h3>
+                        <ul id="lobby-spectators" class="user-list"></ul>
+                    </div>
+                </div>
 
-            <!-- Player Hand (Bottom) -->
-            <div class="player-hand-area">
-                <div id="player-hand" class="cards-container"></div>
-            </div>
-        </section>
+                <div class="lobby-footer">
+                    <button id="btn-start-game" class="btn primary hidden">Start Game</button>
+                </div>
+            </section>
 
-        <!-- Toggle Chat Button for Mobile -->
-        <button id="btn-toggle-chat" class="chat-toggle-btn">💬 Chat</button>
+            <!-- 3. Game Screen -->
+            <section id="game-screen" class="screen hidden">
+                <!-- Top Bar -->
+                <div class="game-header">
+                    <div class="current-turn-display">
+                        <h3>Turn: <span id="active-player-name" class="highlight-text">Waiting...</span></h3>
+                    </div>
+                    <div class="turn-order-list">
+                        <div id="player-turn-order"></div>
+                    </div>
+                </div>
 
-        <!-- 4. Chatbox -->
-        <div id="chat-container" class="chat-box chat-closed hidden">
+                <!-- Main Board -->
+                <div class="game-board">
+                    
+                    <!-- Draw Card Pile (Top Right Positioned) -->
+                    <div id="draw-pile" class="card-slot draw-deck">
+                        <div class="uno-card">
+                            <div class="card-inner">
+                                <div class="card-back">DRAW<br>CARD</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Card Pile (Center) -->
+                    <div class="center-table">
+                        <div id="main-pile" class="card-slot main-card"></div>
+                    </div>
+                    
+                    <div id="animation-layer"></div>
+                </div>
+
+                <!-- Player Hand (Bottom of Game Screen) -->
+                <div class="player-hand-area">
+                    <div id="player-hand" class="cards-container"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 4. Fixed Bottom Chatbox (Not a popup anymore) -->
+        <div id="chat-container" class="chat-box hidden">
             <div class="chat-header">
                 <h4>Live Chat</h4>
-                <button id="btn-close-chat" class="chat-close-x">×</button>
             </div>
             <div id="chat-messages" class="chat-messages"></div>
             <div class="chat-input-area">
