@@ -1,16 +1,18 @@
-/* গ্লোবাল স্টাইল এবং রিসেট */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    -webkit-tap-highlight-color: transparent; /* Mobile tap effect remove */
 }
 
 body {
     background: radial-gradient(circle, #2c3e50, #1a252f);
     color: white;
     height: 100vh;
-    overflow: hidden; /* মূল স্ক্রিন স্ক্রল হবে না */
+    overflow: hidden;
+    position: fixed; /* Fixed viewport for mobile */
+    width: 100vw;
 }
 
 #app-container {
@@ -19,161 +21,157 @@ body {
     position: relative;
 }
 
-/* স্ক্রিন ভিজিবিলিটি কন্ট্রোল */
 .screen {
     width: 100%;
     height: 100%;
     position: absolute;
     top: 0;
     left: 0;
+    padding: 10px;
 }
 
-.hidden {
-    display: none !important;
-}
+.hidden { display: none !important; }
+.active { display: flex; flex-direction: column; }
 
-.active {
-    display: flex;
-    flex-direction: column;
-}
-
-/* =========================================
-   ১. এন্ট্রি/লগিন স্ক্রিন ডিজাইন
-========================================= */
+/* 1. Entry Screen Layout */
 #entry-screen {
     justify-content: center;
     align-items: center;
+    overflow-y: auto;
 }
 
 .glass-panel {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
-    padding: 40px;
+    -webkit-backdrop-filter: blur(10px);
+    padding: 20px;
     border-radius: 15px;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 100%;
+    max-width: 360px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    text-align: center;
-    width: 400px;
-    max-width: 90%;
 }
 
 .glass-panel h1 {
-    font-size: 3rem;
-    margin-bottom: 30px;
+    font-size: 2.2rem;
+    margin-bottom: 15px;
     color: #f1c40f;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    text-align: center;
+}
+
+.action-block {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.action-block h3 {
+    font-size: 1rem;
+    margin-bottom: 10px;
+    color: #3498db;
+}
+
+.divider {
+    text-align: center;
+    margin: 10px 0;
+    font-weight: bold;
+    color: #aaa;
 }
 
 .input-group {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     text-align: left;
 }
 
 .input-group label {
     display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 0.85rem;
 }
 
 .input-group input {
     width: 100%;
-    padding: 12px;
+    padding: 10px;
     border: none;
-    border-radius: 8px;
-    font-size: 1rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
     outline: none;
 }
 
-.button-group {
+.button-row {
     display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-top: 30px;
+    gap: 10px;
 }
 
 .btn {
-    padding: 12px 20px;
+    width: 100%;
+    padding: 12px;
     border: none;
-    border-radius: 8px;
-    font-size: 1.1rem;
+    border-radius: 6px;
+    font-size: 1rem;
     font-weight: bold;
     cursor: pointer;
-    transition: transform 0.2s, opacity 0.2s;
-}
-
-.btn:active {
-    transform: scale(0.95);
-}
-
-.btn:hover {
-    opacity: 0.9;
 }
 
 .btn.primary { background: #e74c3c; color: white; }
 .btn.secondary { background: #3498db; color: white; }
 .btn.spectator { background: #95a5a6; color: white; }
 
-/* =========================================
-   ২. লবি স্ক্রিন ডিজাইন
-========================================= */
-.lobby-header {
-    text-align: center;
-    padding: 20px;
-    background: rgba(0,0,0,0.3);
-}
-
-.highlight-text {
-    color: #f1c40f;
-    font-weight: bold;
-}
+/* 2. Lobby Screen */
+.lobby-header { text-align: center; padding: 10px; }
+.highlight-text { color: #f1c40f; font-weight: bold; }
 
 .lobby-content {
     display: flex;
-    justify-content: center;
-    gap: 50px;
-    padding: 40px;
+    flex-direction: column;
+    gap: 15px;
     flex: 1;
+    overflow-y: auto;
 }
+
+.lobby-box { flex: 1; }
+.lobby-box h3 { margin-bottom: 5px; font-size: 1rem;}
 
 .user-list {
     list-style: none;
     background: rgba(255,255,255,0.05);
-    padding: 20px;
-    border-radius: 10px;
-    min-width: 250px;
-    min-height: 300px;
+    padding: 10px;
+    border-radius: 8px;
+    min-height: 120px;
 }
 
 .user-list li {
-    padding: 10px;
+    padding: 8px;
     border-bottom: 1px solid rgba(255,255,255,0.1);
-    font-size: 1.1rem;
+    font-size: 0.95rem;
 }
 
-.lobby-footer {
-    text-align: center;
-    padding: 20px;
-}
-
-/* =========================================
-   ৩. গেম স্ক্রিন এবং কার্ড ডিজাইন
-========================================= */
+/* 3. Game Screen (Mobile Optimized) */
 .game-header {
     display: flex;
-    justify-content: space-between;
-    padding: 15px 30px;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 5px;
     background: rgba(0,0,0,0.4);
+    border-radius: 5px;
 }
 
-.turn-order-list {
-    font-size: 0.9rem;
+#player-turn-order {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    width: 100vw;
+    padding: 2px 10px;
 }
 
 #player-turn-order span {
-    margin-right: 10px;
-    padding: 5px 10px;
+    padding: 4px 8px;
     background: rgba(255,255,255,0.1);
-    border-radius: 15px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    white-space: nowrap;
 }
 
 .game-board {
@@ -184,31 +182,28 @@ body {
     position: relative;
 }
 
-/* সেন্টারে মেইন কার্ড এবং ড্র কার্ড (২:১ অনুপাতে সাজানো) */
 .center-table {
     display: flex;
-    gap: 40px;
+    gap: 20px;
     align-items: center;
 }
 
-/* রিয়েল কার্ডের বেসিক শেপ */
+/* Mobile Friendly Card Size (Reduced from 120x180) */
 .uno-card {
-    width: 120px;
-    height: 180px;
+    width: 75px;
+    height: 115px;
     background-color: white;
-    border-radius: 12px;
-    padding: 8px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+    border-radius: 8px;
+    padding: 5px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
     position: relative;
-    user-select: none;
-    flex-shrink: 0; /* কার্ড স্কুইজ হবে না */
+    flex-shrink: 0;
 }
 
-/* কার্ডের ভেতরের রঙিন অংশ */
 .card-inner {
     width: 100%;
     height: 100%;
-    border-radius: 8px;
+    border-radius: 5px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -216,7 +211,6 @@ body {
     overflow: hidden;
 }
 
-/* UNO কার্ডের মাঝখানের সাদা ডিম্বাকার (Oval) শেপ */
 .card-inner::before {
     content: '';
     position: absolute;
@@ -228,170 +222,122 @@ body {
     z-index: 1;
 }
 
-/* কার্ডের ভ্যালু (মাঝখানের বড় টেক্সট) */
 .card-value {
     position: relative;
     z-index: 2;
-    font-size: 4rem;
+    font-size: 2.2rem;
     font-weight: 900;
-    text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
 }
 
-/* কার্ডের কোণার ছোট টেক্সট */
 .card-corner {
     position: absolute;
-    font-size: 1.2rem;
+    font-size: 0.8rem;
     font-weight: bold;
     color: white;
     text-shadow: 1px 1px 1px black;
     z-index: 3;
 }
 
-.corner-top-left { top: 12px; left: 15px; }
-.corner-bottom-right { bottom: 12px; right: 15px; transform: rotate(180deg); }
+.corner-top-left { top: 5px; left: 6px; }
+.corner-bottom-right { bottom: 5px; right: 6px; transform: rotate(180deg); }
 
-/* রঙের ক্লাসগুলো */
-.color-red .card-inner { background-color: #ff5555; }
-.color-red .card-value { color: #ff5555; }
+/* Card Colors */
+.color-red .card-inner { background-color: #ff5555; } .color-red .card-value { color: #ff5555; }
+.color-blue .card-inner { background-color: #3498db; } .color-blue .card-value { color: #3498db; }
+.color-green .card-inner { background-color: #2ecc71; } .color-green .card-value { color: #2ecc71; }
+.color-yellow .card-inner { background-color: #f1c40f; } .color-yellow .card-value { color: #f1c40f; }
+.color-black .card-inner { background-color: #2c3e50; } .color-black .card-value { color: white; }
 
-.color-blue .card-inner { background-color: #3498db; }
-.color-blue .card-value { color: #3498db; }
+/* Draw Deck Custom */
+.draw-deck .card-inner { background-color: #2c3e50; border: 1.5px solid #e74c3c; }
+.draw-deck .card-inner::before { background: #e74c3c; border-radius: 50% / 30%; }
+.draw-deck .card-value { color: #f1c40f; font-size: 1.4rem; transform: rotate(-25deg); }
 
-.color-green .card-inner { background-color: #2ecc71; }
-.color-green .card-value { color: #2ecc71; }
-
-.color-yellow .card-inner { background-color: #f1c40f; }
-.color-yellow .card-value { color: #f1c40f; }
-
-.color-black .card-inner { background-color: #2c3e50; }
-.color-black .card-value { color: white; }
-
-/* ড্র ডেক (উল্টানো কার্ড) */
-.draw-deck .uno-card {
-    background-color: white;
-    cursor: pointer;
-}
-.draw-deck .card-inner {
-    background-color: #2c3e50;
-    border: 2px solid #e74c3c;
-}
-.draw-deck .card-inner::before {
-    background: #e74c3c;
-    border-radius: 50% / 30%;
-}
-.draw-deck .card-value {
-    color: #f1c40f;
-    font-size: 2.5rem;
-    transform: rotate(-25deg);
-}
-
-/* প্লেয়ারের কার্ড এরিয়া (নিচে) */
+/* Player Hand Area at Bottom */
 .player-hand-area {
     width: 100%;
-    padding: 20px;
+    padding: 10px 5px;
     background: rgba(0,0,0,0.5);
-    border-top: 3px solid rgba(255,255,255,0.1);
+    border-top: 2px solid rgba(255,255,255,0.1);
 }
 
 .cards-container {
     display: flex;
-    flex-wrap: wrap; /* জায়গা না পেলে পরের লাইনে যাবে */
+    flex-wrap: wrap; /* Wrap lines when full */
     justify-content: center;
-    gap: 15px;
-    max-height: 35vh; /* উচ্চতা ফিক্সড, বেশি হলে স্ক্রল হবে */
+    gap: 8px;
+    max-height: 28vh;
     overflow-y: auto;
-    padding: 10px;
+    padding: 5px;
 }
 
-.cards-container .uno-card {
-    cursor: pointer;
-    transition: transform 0.2s;
-}
+/* Flying Card Overlays */
+#animation-layer { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1000; }
+.flying-card { position: absolute; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); z-index: 1001; }
 
-.cards-container .uno-card:hover {
-    transform: translateY(-15px); /* হোভার করলে একটু উপরে উঠবে */
-}
-
-/* =========================================
-   ৪. অ্যানিমেশন (উড়ে যাওয়ার জন্য)
-========================================= */
-#animation-layer {
+/* 4. Chat Panel (Slide-up Popup for Mobile) */
+.chat-toggle-btn {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none; /* ক্লিকের সমস্যা করবে না */
-    z-index: 1000;
-}
-
-.flying-card {
-    position: absolute;
-    transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
-    z-index: 1001;
-}
-
-/* =========================================
-   ৫. চ্যাটবক্স ডিজাইন
-========================================= */
-.chat-box {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 300px;
-    height: 400px;
-    background: rgba(25, 30, 40, 0.9);
-    border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.2);
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    z-index: 500;
-}
-
-.chat-header {
-    padding: 10px;
-    background: rgba(0,0,0,0.5);
-    border-radius: 10px 10px 0 0;
-    font-weight: bold;
-}
-
-.chat-messages {
-    flex: 1;
-    padding: 10px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    font-size: 0.9rem;
-}
-
-.chat-message {
-    background: rgba(255,255,255,0.1);
-    padding: 8px;
-    border-radius: 5px;
-}
-
-.chat-input-area {
-    display: flex;
-    padding: 10px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-}
-
-.chat-input-area input {
-    flex: 1;
-    padding: 8px;
-    border: none;
-    border-radius: 5px 0 0 5px;
-    outline: none;
-}
-
-.btn-send {
-    padding: 8px 15px;
+    top: 10px;
+    right: 10px;
+    padding: 6px 12px;
     background: #2ecc71;
     color: white;
     border: none;
-    border-radius: 0 5px 5px 0;
-    cursor: pointer;
+    border-radius: 20px;
     font-weight: bold;
+    z-index: 499;
+    font-size: 0.85rem;
+}
+
+.chat-box {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: 100vw;
+    height: 70vh; /* Covers lower part of screen */
+    background: rgba(25, 30, 40, 0.98);
+    border-radius: 15px 15px 0 0;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.6);
+    z-index: 500;
+    transition: transform 0.3s ease;
+}
+
+.chat-closed { transform: translateY(100%); } /* Hides chat when closed */
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 15px 15px 0 0;
+}
+
+.chat-close-x {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.8rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.chat-messages { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.chat-message { background: rgba(255,255,255,0.08); padding: 8px; border-radius: 6px; word-break: break-word; }
+.chat-input-area { display: flex; padding: 10px; border-top: 1px solid rgba(255,255,255,0.1); background: #1a252f; }
+.chat-input-area input { flex: 1; padding: 12px; border: none; border-radius: 6px 0 0 6px; outline: none; font-size: 1rem; }
+.btn-send { padding: 12px 18px; background: #2ecc71; color: white; border: none; border-radius: 0 6px 6px 0; font-weight: bold; }
+
+/* Desktop Orientation / Tablet adjustment */
+@media (min-width: 768px) {
+    .lobby-content { flex-direction: row; }
+    .chat-box { width: 320px; height: 420px; border-radius: 10px; bottom: 20px; right: 20px; }
+    .chat-closed { transform: none; }
+    .chat-close-x { display: none; }
+    .chat-toggle-btn { display: none; }
+    .uno-card { width: 100px; height: 150px; }
+    .card-value { font-size: 3.2rem; }
 }
