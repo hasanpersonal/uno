@@ -9,7 +9,7 @@
 <body>
     <div id="app-container">
         
-        <!-- Screens Area (Top Part) -->
+        <!-- Screens Area (Top/Main Part) -->
         <div id="screens-area">
             <!-- 1. Entry / Login Screen -->
             <section id="entry-screen" class="screen active">
@@ -38,8 +38,7 @@
                             <input type="text" id="room-code" placeholder="Enter 6-digit code...">
                         </div>
                         <div class="button-row">
-                            <button id="btn-join-player" class="btn secondary">Join as Player</button>
-                            <button id="btn-join-spectator" class="btn spectator">Join as Spectator</button>
+                            <button id="btn-join-player" class="btn secondary">Join Game</button>
                         </div>
                     </div>
                 </div>
@@ -56,10 +55,6 @@
                     <div class="lobby-box">
                         <h3>Players</h3>
                         <ul id="lobby-players" class="user-list"></ul>
-                    </div>
-                    <div class="lobby-box">
-                        <h3>Spectators</h3>
-                        <ul id="lobby-spectators" class="user-list"></ul>
                     </div>
                 </div>
 
@@ -82,7 +77,6 @@
 
                 <!-- Main Board -->
                 <div class="game-board">
-                    
                     <!-- Draw Card Pile (Top Right Positioned) -->
                     <div id="draw-pile" class="card-slot draw-deck">
                         <div class="uno-card">
@@ -100,14 +94,23 @@
                     <div id="animation-layer"></div>
                 </div>
 
-                <!-- Player Hand (Bottom of Game Screen) -->
+                <!-- Player Hand -->
                 <div class="player-hand-area">
                     <div id="player-hand" class="cards-container"></div>
                 </div>
             </section>
+
+            <!-- 4. Game Over / Standing Screen -->
+            <section id="game-over-screen" class="screen hidden">
+                <div class="glass-panel ranking-panel">
+                    <h2>🏆 Match Standings 🏆</h2>
+                    <div id="standings-list" class="standings-list"></div>
+                    <button id="btn-return-lobby" class="btn secondary" style="margin-top: 20px;">Return to Lobby</button>
+                </div>
+            </section>
         </div>
 
-        <!-- 4. Fixed Bottom Chatbox (Not a popup anymore) -->
+        <!-- 5. Fixed Dynamic Chatbox -->
         <div id="chat-container" class="chat-box hidden">
             <div class="chat-header">
                 <h4>Live Chat</h4>
