@@ -207,3 +207,67 @@ ul li {
     font-weight: bold;
     color: #ffaa00;
 }
+
+/* --- NOTUN ANIMATION STYLES --- */
+
+/* Draw korle card upper deck theke niche ashbe (Host/Player nijer phone-e) */
+@keyframes drawToMyHand {
+    0% {
+        transform: scale(0.3) translateY(-300px);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Onno player draw korle card deck theke uree upore chole jabe (Opponent visual) */
+@keyframes drawToOpponent {
+    0% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(0.2) translateY(-400px);
+        opacity: 0;
+    }
+}
+
+/* Nijer hand theke card throw korle uree center-e jabe */
+@keyframes playFromMyHand {
+    0% {
+        transform: scale(1) translateY(150px);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Onno keu card play korle center slot-e upor theke card tana hobe */
+@keyframes playFromOpponent {
+    0% {
+        transform: scale(0.3) translateY(-300px);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Class trigger templates */
+.anim-draw-me {
+    animation: drawToMyHand 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.anim-play-me {
+    animation: playFromMyHand 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.anim-play-opp {
+    animation: playFromOpponent 0.5s ease-out forwards;
+        }
+
