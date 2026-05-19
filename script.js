@@ -1,10 +1,8 @@
 /* =========================================================
-   CYBER UNO MULTIPLAYER - BUG-FREE PREMIUM ENGINE
+   CYBER UNO MULTIPLAYER - CORE APPLICAION ENGINE
    ========================================================= */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, push, onDisconnect, update, child } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-database.js";
-
+// Firebase Configuration (Asia Server Link)
 const firebaseConfig = {
     apiKey: "AIzaSyCKqsxIC2aGBR0UnejiXlIaJeKAfdW_Zp0",
     authDomain: "online-ha.firebaseapp.com",
@@ -16,428 +14,602 @@ const firebaseConfig = {
     measurementId: "G-T6GYPQT874"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+// Initialize Firebase
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const database = firebase.database();
 
-let myPlayerId = 'player_' + Math.floor(Math.random() * 1000000);
-let myName = '';
-let currentRoomId = null;
+// State Management Variables
+let myPlayerId = "";
+let myPlayerName = "";
+let currentRoomId = "";
 let isHost = false;
-let amISpectator = false;
-let myCards = [];
-let currentTurnId = null;
-let currentColor = '';
+let myRole = "player"; // 'player' or 'spectator'
+let roomRef = null;
 
-const COLORS = ['red', 'blue', 'green', 'yellow'];
-const VALUES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', 'Draw2'];
+// Game constants
+const UNO_COLORS = ["red", "blue", "green", "yellow"];
+const UNO_VALUES = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse"];
+const TRACKER_COLORS = ["#ff0055", "#00f0ff", "#00ff66", "#ffea00", "#a200ff", "#ff7700", "#00ffcc", "#ff00ff"];
 
-// Attach to Window for HTML onClick recognition
-window.createUnoRoom = createUnoRoom;
-window.joinUnoRoom = joinUnoRoom;
-window.sendChatMessage = sendChatMessage;
-window.toggleIngameChat = toggleIngameChat;
-window.startUnoGame = startUnoGame;
-window.attemptPlayCard = attemptPlayCard;
-window.selectWildColor = selectWildColor;
-window.backToLobby = backToLobby;
-window.triggerUnoShout = triggerUnoShout;
-window.drawCard = drawCard;
+// Utility Generators
+function generateRandomId() { return Math.random().toString(36).substr(2, 9); }
 
-function createUnoRoom() {
-    myName = document.getElementById('player-name').value.trim() || 'CyberHost';
+function generateRandomCard() {
+    const isWild = Math.random() < 0.08; // 8% chance of wild card
+    if (isWild) {
+        return { color: "wild", value: "Wild", id: generateRandomId() };
+    }
+    const color = UNO_COLORS[Math.floor(Math.random() * UNO_COLORS.length)];
+    const value = UNO_VALUES[Math.floor(Math.random() * UNO_VALUES.length)];
+    return { color, value, id: generateRandomId() };
+}
+
+/* =========================================================
+   SCREEN ROUTING & CONTROLS
+   ========================================================= */
+function showScreen(screenId) {
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('waiting-screen').classList.add('hidden');
+    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('gameover-screen').classList.add('hidden');
+    
+    if(screenId) {
+        document.getElementById(screenId).classList.remove('hidden');
+    }
+}
+
+/* =========================================================
+   1. AUTH / ROOM INITIALIZATION
+   ========================================================= */
+
+// CREATE ROOM
+document.getElementById('btn-create-room').addEventListener('click', () => {
+    const name = document.getElementById('player-name').value.trim();
+    if (!name) return alert("Enter your Cyber Name first!");
+
+    myPlayerName = name;
+    myPlayerId = generateRandomId();
     currentRoomId = Math.floor(1000 + Math.random() * 9000).toString();
     isHost = true;
-    amISpectator = false;
+    myRole = "player";
 
-    set(ref(db, 'uno_rooms/' + currentRoomId), {
+    roomRef = database.ref('rooms/' + currentRoomId);
+    
+    roomRef.set({
+        status: "waiting",
         hostId: myPlayerId,
-        state: 'lobby',
-        createdAt: new Date().getTime(),
-        leaderboard: []
-    }).then(() => joinRoomLogic(currentRoomId, false));
+        turnIndex: 0,
+        direction: 1, 
+        playerOrder: [myPlayerId],
+        spectators: {},
+        players: {
+            [myPlayerId]: { name: name, cards: [], status: "playing" }
+        },
+        chat: { init: true },
+        latestStandings: {}
+    }).then(() => {
+        setupLobbyUI();
+    });
+});
+
+// JOIN AS PLAYER
+document.getElementById('btn-join-player').addEventListener('click', () => {
+    handleJoinRoom("player");
+});
+
+// JOIN AS SPECTATOR
+document.getElementById('btn-join-spectator').addEventListener('click', () => {
+    handleJoinRoom("spectator");
+});
+
+function handleJoinRoom(role) {
+    const name = document.getElementById('player-name').value.trim();
+    const code = document.getElementById('room-code-input').value.trim();
+    if (!name || !code) return alert("Enter Name and 4-Digit Room Code!");
+
+    myPlayerName = name;
+    myPlayerId = generateRandomId();
+    currentRoomId = code;
+    myRole = role;
+    isHost = false;
+
+    roomRef = database.ref('rooms/' + currentRoomId);
+
+    roomRef.once('value', snapshot => {
+        if (!snapshot.exists()) return alert("Matrix Room not found!");
+        let roomData = snapshot.val();
+
+        if (role === "player" && roomData.status !== "waiting") {
+            return alert("Match already in progress! Try joining as Spectator.");
+        }
+
+        let updates = {};
+        if (role === "player") {
+            let updatedOrder = roomData.playerOrder || [];
+            updatedOrder.push(myPlayerId);
+            updates['/playerOrder'] = updatedOrder;
+            updates['/players/' + myPlayerId] = { name: name, cards: [], status: "playing" };
+        } else {
+            updates['/spectators/' + myPlayerId] = { name: name };
+        }
+
+        roomRef.update(updates).then(() => {
+            setupLobbyUI();
+        });
+    });
 }
 
-function joinUnoRoom(asSpectator) {
-    myName = document.getElementById('player-name').value.trim() || (asSpectator ? 'Watcher' : 'Player');
-    const inputCode = document.getElementById('room-code-input').value.trim();
-    if (inputCode.length === 4) {
-        currentRoomId = inputCode;
-        amISpectator = asSpectator;
-        joinRoomLogic(currentRoomId, asSpectator);
+function setupLobbyUI() {
+    document.getElementById('display-room-code').innerText = currentRoomId;
+    document.getElementById('role-badge').innerText = myRole.toUpperCase();
+    
+    if (isHost) {
+        document.getElementById('btn-start').classList.remove('hidden');
+        document.getElementById('waiting-msg').classList.add('hidden');
     } else {
-        alert("Enter a valid 4-digit Matrix Code!");
+        document.getElementById('btn-start').classList.add('hidden');
+        document.getElementById('waiting-msg').classList.remove('hidden');
     }
+    
+    showScreen('waiting-screen');
+    listenToRoomUpdates();
 }
 
-function joinRoomLogic(roomId, spectator) {
-    const playerRef = ref(db, `uno_rooms/${roomId}/players/${myPlayerId}`);
-    set(playerRef, {
-        name: myName,
-        isSpectator: spectator,
-        cardCount: 0,
-        cards: [],
-        hasCalledUno: false,
-        joinedAt: new Date().getTime()
+/* =========================================================
+   2. MATCH ENGINE START
+   ========================================================= */
+document.getElementById('btn-start').addEventListener('click', () => {
+    roomRef.once('value', snapshot => {
+        let roomData = snapshot.val();
+        if(!roomData.playerOrder || roomData.playerOrder.length < 2) {
+            return alert("Need at least 2 cyber players to boot the engine!");
+        }
+
+        let updates = {};
+        roomData.playerOrder.forEach(pid => {
+            let startingHand = [];
+            for (let i = 0; i < 7; i++) startingHand.push(generateRandomCard());
+            updates['/players/' + pid + '/cards'] = startingHand;
+            updates['/players/' + pid + '/status'] = "playing";
+        });
+
+        let firstCard = generateRandomCard();
+        while (firstCard.color === "wild" || ["Skip", "Reverse"].includes(firstCard.value)) {
+            firstCard = generateRandomCard();
+        }
+
+        updates['/status'] = "playing";
+        updates['/currentCard'] = firstCard;
+        updates['/turnIndex'] = 0;
+        updates['/direction'] = 1;
+        updates['/rankings'] = []; // Clear old dynamic rankings
+
+        roomRef.update(updates);
     });
+});
 
-    onDisconnect(playerRef).remove();
+/* =========================================================
+   3. DATA LISTENER & HUD SYNC
+   ========================================================= */
+function listenToRoomUpdates() {
+    roomRef.on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data) return;
 
-    document.getElementById('start-screen').classList.add('hidden');
-    document.getElementById('waiting-screen').classList.remove('hidden');
-    document.getElementById('display-room-code').innerText = roomId;
-    document.getElementById('role-badge').innerText = spectator ? "SPECTATOR" : (isHost ? "HOST" : "PLAYER");
-    if (isHost) document.getElementById('btn-start').classList.remove('hidden');
+        // --- HANDLER: LOBBY WAITING STAGE ---
+        if (data.status === "waiting") {
+            showScreen('waiting-screen');
+            
+            // Render User list
+            const list = document.getElementById('players-list');
+            list.innerHTML = "";
+            if (data.playerOrder) {
+                data.playerOrder.forEach(pid => {
+                    let li = document.createElement('li');
+                    li.innerHTML = `<i class="fas fa-gamepad"></i> ${data.players[pid].name} ${pid === data.hostId ? "(Host)" : ""}`;
+                    list.appendChild(li);
+                });
+            }
+            // Render Spectators inside user list
+            if (data.spectators) {
+                Object.values(data.spectators).forEach(spec => {
+                    let li = document.createElement('li');
+                    li.style.borderLeft = "3px solid #ffea00";
+                    li.innerHTML = `<i class="fas fa-eye"></i> ${spec.name} (Spectator)`;
+                    list.appendChild(li);
+                });
+            }
 
-    setupRoomListeners(roomId);
-}
-
-function setupRoomListeners(roomId) {
-    const roomRef = ref(db, `uno_rooms/${roomId}`);
-
-    onValue(child(roomRef, 'players'), (snapshot) => {
-        const players = snapshot.val() || {};
-        updateLobbyPlayersList(players);
-        if (!document.getElementById('hud').classList.contains('hidden')) {
-            updateOpponentsArena(players);
-            updateFooterTracker(players);
+            // Sync Latest Standings (Previous Match Result)
+            const lobbyLeaderboard = document.getElementById('lobby-leaderboard');
+            const lobbyLeaderboardList = document.getElementById('lobby-leaderboard-list');
+            if (data.latestStandings && Object.keys(data.latestStandings).length > 0) {
+                lobbyLeaderboard.classList.remove('hidden');
+                lobbyLeaderboardList.innerHTML = "";
+                Object.values(data.latestStandings).forEach((entry, idx) => {
+                    lobbyLeaderboardList.innerHTML += `<li>#${idx+1} ${entry.name}</li>`;
+                });
+            } else {
+                lobbyLeaderboard.classList.add('hidden');
+            }
+        } 
+        
+        // --- HANDLER: LIVE GAMEPLAY HUD ---
+        else if (data.status === "playing") {
+            showScreen('hud');
+            
+            if (myRole === "spectator") {
+                document.getElementById('spectator-hud-alert').classList.remove('hidden');
+            } else {
+                document.getElementById('spectator-hud-alert').classList.add('hidden');
+            }
+            renderGameBoard(data);
+        } 
+        
+        // --- HANDLER: GAMEOVER SCREEN ---
+        else if (data.status === "gameover") {
+            showScreen('gameover-screen');
+            renderGameOver(data);
         }
     });
 
-    onValue(child(roomRef, 'state'), (snapshot) => {
-        const state = snapshot.val();
-        if (state === 'playing') transitionToGame();
-        else if (state === 'finished') showGameOverScreen();
-        else if (state === 'lobby' && !document.getElementById('gameover-screen').classList.contains('hidden')) resetToLobbyState();
+    // Dual Chat Sync
+    roomRef.child('chat').on('child_added', snapshot => {
+        if (snapshot.key === "init") return;
+        const msg = snapshot.val();
+        appendChatMessage(msg);
+    });
+}
+
+/* =========================================================
+   4. GAME BOARD CORE RENDERING
+   ========================================================= */
+function renderGameBoard(data) {
+    const activePlayerId = data.playerOrder[data.turnIndex];
+    const isMyTurn = (activePlayerId === myPlayerId && myRole === "player");
+
+    // Dynamic Turn HUD Text
+    const turnName = data.players[activePlayerId] ? data.players[activePlayerId].name : "System";
+    document.getElementById('current-player-name').innerText = isMyTurn ? "YOUR TURN" : turnName;
+    document.getElementById('current-turn-box').style.color = isMyTurn ? "#00ff66" : "#00f0ff";
+    document.getElementById('direction-txt').innerText = data.direction === 1 ? "CW" : "CCW";
+
+    // Discard Center Pile Render
+    const centerPile = document.getElementById('discard-pile');
+    centerPile.className = `uno-card card-${data.currentCard.color} shadow-glow`;
+    centerPile.innerHTML = `<span>${data.currentCard.value}</span>`;
+
+    // Opponents Arena Render
+    const arena = document.getElementById('opponents-arena');
+    arena.innerHTML = "";
+    
+    data.playerOrder.forEach(pid => {
+        let pData = data.players[pid];
+        if (!pData) return;
+        
+        let cardCount = pData.cards ? Object.keys(pData.cards).length : 0;
+        let isOpponentTurn = (pid === activePlayerId);
+        let statusBadge = pData.status === "finished" ? "🏆 FINISHED" : `${cardCount} Cards`;
+
+        // Render mini profiles grid
+        arena.innerHTML += `
+            <div class="opp-avatar ${isOpponentTurn ? 'active-turn' : ''}">
+                <div class="opp-card-back">${cardCount}</div>
+                <div class="opp-name">${pData.name}</div>
+            </div>
+        `;
     });
 
-    onValue(child(roomRef, 'chats'), (snapshot) => {
-        const chatBoxLobby = document.getElementById('lobby-chat-messages');
-        const chatBoxIngame = document.getElementById('ingame-chat-messages');
-        chatBoxLobby.innerHTML = '';
-        chatBoxIngame.innerHTML = '';
-        snapshot.forEach((childSnap) => {
-            const msg = childSnap.val();
-            const chatHtml = `<div><span style="color:#00f0ff;">[${msg.sender}]</span>: ${msg.text}</div>`;
-            chatBoxLobby.innerHTML += chatHtml;
-            chatBoxIngame.innerHTML += chatHtml;
+    // Local Hand Management (Hide if spectator)
+    const handSection = document.getElementById('player-hand-section');
+    const cardsWrapper = document.getElementById('player-cards-wrapper');
+    
+    if (myRole === "spectator" || (data.players[myPlayerId] && data.players[myPlayerId].status === "finished")) {
+        handSection.style.display = "none";
+    } else {
+        handSection.style.display = "block";
+        cardsWrapper.innerHTML = "";
+        
+        let myCards = data.players[myPlayerId].cards || [];
+        let myCardsArray = Array.isArray(myCards) ? myCards : Object.values(myCards);
+        document.getElementById('hand-count-lbl').innerText = `YOUR MATRIX: ${myCardsArray.length} CARDS`;
+
+        myCardsArray.forEach((card, idx) => {
+            if(!card) return;
+            let cardDiv = document.createElement('div');
+            cardDiv.className = `playable-card card-${card.color}`;
+            cardDiv.innerHTML = `<span>${card.value}</span>`;
+            
+            cardDiv.onclick = () => {
+                if (!isMyTurn) return alert("Cyber Lock! It's not your turn transmission.");
+                executePlayCard(card, idx, data);
+            };
+            cardsWrapper.appendChild(cardDiv);
         });
-        chatBoxLobby.scrollTop = chatBoxLobby.scrollHeight;
-        chatBoxIngame.scrollTop = chatBoxIngame.scrollHeight;
+    }
+
+    // --- CAR GAME FOOTER TRACKER ENGINE ---
+    updateCarStyleTracker(data);
+}
+
+// CAR REACING LANES UPDATER
+function updateCarStyleTracker(data) {
+    const laneContainer = document.getElementById('tracker-lanes');
+    laneContainer.innerHTML = "";
+    
+    let totalPlayers = data.playerOrder.length;
+    let myLeftCount = 0;
+
+    data.playerOrder.forEach((pid, index) => {
+        let pData = data.players[pid];
+        if(!pData) return;
+        
+        let cardCount = pData.cards ? Object.keys(pData.cards).length : 0;
+        if(pid === myPlayerId) myLeftCount = cardCount;
+
+        // Progress Calculation: 7 card structure reference (0 to 100% logic inversion)
+        // More cards = Left side, 0 cards = Complete right side (Win)
+        let maxCardsReference = 10;
+        let progressPercent = ((maxCardsReference - Math.min(cardCount, maxCardsReference)) / maxCardsReference) * 100;
+        if (pData.status === "finished") progressPercent = 100;
+
+        // Lane Calculation offsets
+        let laneHeightStep = 100 / totalPlayers;
+        let laneTopPosition = (index * laneHeightStep) + (laneHeightStep / 2);
+
+        let dot = document.createElement('div');
+        dot.className = "player-progress-dot";
+        dot.style.left = `${Math.max(5, Math.min(progressPercent, 95))}%`;
+        dot.style.top = `${laneTopPosition}%`;
+        dot.style.color = TRACKER_COLORS[index % TRACKER_COLORS.length];
+        dot.style.backgroundColor = TRACKER_COLORS[index % TRACKER_COLORS.length];
+        dot.title = pData.name;
+
+        laneContainer.appendChild(dot);
     });
 
-    onValue(child(roomRef, 'topCard'), (snapshot) => {
-        const card = snapshot.val();
-        if (card) renderTopCard(card);
+    document.getElementById('cards-left-tracker-txt').innerText = myRole === "spectator" ? "LIVE RECON" : `${myLeftCount} MATRIX LEFT`;
+}
+
+/* =========================================================
+   5. GAMEPLAY MOVES & RULES
+   ========================================================= */
+
+// DRAW CARD CONTROLLER
+document.getElementById('btn-draw').addEventListener('click', () => {
+    if (myRole === "spectator") return;
+    
+    roomRef.once('value', snapshot => {
+        let data = snapshot.val();
+        if (data.playerOrder[data.turnIndex] !== myPlayerId) return alert("Not your system turn cycle!");
+
+        let myCards = data.players[myPlayerId].cards || [];
+        let myCardsArray = Array.isArray(myCards) ? myCards : Object.values(myCards);
+        
+        myCardsArray.push(generateRandomCard());
+        
+        // Pass Turn automatically
+        let nextTurn = calculateNextTurnIndex(data);
+
+        roomRef.update({
+            turnIndex: nextTurn,
+            [`players/${myPlayerId}/cards`]: myCardsArray
+        });
+    });
+});
+
+function executePlayCard(card, cardIndex, roomData) {
+    let activeCard = roomData.currentCard;
+    
+    let isColorMatch = (card.color === activeCard.color || card.color === "wild" || activeCard.color === "wild");
+    let isValueMatch = (card.value === activeCard.value);
+
+    if (!isColorMatch && !isValueMatch) {
+        return alert("Matrix Conflict! Card must match color or value specs.");
+    }
+
+    if (card.color === "wild") {
+        document.getElementById('color-chooser-overlay').classList.remove('hidden');
+        // Save temporary action parameter on wrapper
+        document.getElementById('color-chooser-overlay').dataset.pendingIndex = cardIndex;
+    } else {
+        commitCardToDatabase(card, cardIndex, roomData);
+    }
+}
+
+// WILD CARD COLOR POPUP EVENT LISTENER
+document.querySelectorAll('.color-choice').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const selectedColor = e.target.id.replace('color-', '');
+        const overlay = document.getElementById('color-chooser-overlay');
+        const cardIndex = parseInt(overlay.dataset.pendingIndex);
+        overlay.classList.add('hidden');
+
+        roomRef.once('value', snapshot => {
+            let roomData = snapshot.val();
+            let myCards = roomData.players[myPlayerId].cards || [];
+            let myCardsArray = Array.isArray(myCards) ? myCards : Object.values(myCards);
+            
+            let selectedCard = myCardsArray[cardIndex];
+            selectedCard.color = selectedColor; // Apply chosen matrix variant color
+
+            commitCardToDatabase(selectedCard, cardIndex, roomData);
+        });
+    });
+});
+
+function commitCardToDatabase(card, cardIndex, roomData) {
+    let myCards = Array.isArray(roomData.players[myPlayerId].cards) 
+        ? roomData.players[myPlayerId].cards 
+        : Object.values(roomData.players[myPlayerId].cards);
+        
+    myCards.splice(cardIndex, 1);
+
+    let updates = {};
+    let currentRankings = roomData.rankings ? [...roomData.rankings] : [];
+
+    // Player Out / Spectator Transformation condition
+    if (myCards.length === 0) {
+        updates[`/players/${myPlayerId}/status`] = "finished";
+        currentRankings.push({ id: myPlayerId, name: myPlayerName });
+        updates['/rankings'] = currentRankings;
+        alert("🎉 Matrix Core Purged! You secured rank placement.");
+    }
+
+    updates[`/players/${myPlayerId}/cards`] = myCards;
+    updates['/currentCard'] = card;
+
+    // Evaluate Remaining Players for Auto Match Termination
+    let activePlayersLeft = roomData.playerOrder.filter(pid => {
+        let status = (pid === myPlayerId) ? (myCards.length === 0 ? "finished" : "playing") : roomData.players[pid].status;
+        return status === "playing";
     });
 
-    onValue(child(roomRef, 'currentTurn'), (snapshot) => {
-        currentTurnId = snapshot.val();
-        if (currentTurnId) {
-            onValue(ref(db, `uno_rooms/${currentRoomId}/players/${currentTurnId}/name`), (nameSnap) => {
-                document.getElementById('current-player-name').innerText = nameSnap.val() || '---';
-            }, { onlyOnce: true });
+    if (activePlayersLeft.length <= 1) {
+        // Append last remaining player to ranking order map
+        if(activePlayersLeft.length === 1) {
+            let lastPid = activePlayersLeft[0];
+            currentRankings.push({ id: lastPid, name: roomData.players[lastPid].name });
+            updates['/rankings'] = currentRankings;
         }
-    });
+        updates['/status'] = "gameover";
+        updates['/latestStandings'] = currentRankings; // Store ranking parameters inside room core
+    } else {
+        // Adjust directional sequences
+        let direction = roomData.direction || 1;
+        if (card.value === "Reverse") {
+            direction *= -1;
+            roomData.direction = direction; 
+            updates['/direction'] = direction;
+        }
 
-    onValue(child(roomRef, 'leaderboard'), (snapshot) => {
-        const leaders = snapshot.val() || [];
-        updateLeaderboardUI(leaders);
-    });
+        // Setup Skip parameters
+        let step = 1;
+        if (card.value === "Skip") step = 2;
 
-    if (!amISpectator) {
-        onValue(ref(db, `uno_rooms/${roomId}/players/${myPlayerId}/cards`), (snapshot) => {
-            myCards = snapshot.val() || [];
-            renderMyHand(myCards);
-            checkMyWinCondition(myCards.length);
-        });
+        let nextTurnIndex = roomData.turnIndex;
+        for (let i = 0; i < step; i++) {
+            nextTurnIndex = (nextTurnIndex + direction) % roomData.playerOrder.length;
+            if (nextTurnIndex < 0) nextTurnIndex += roomData.playerOrder.length;
+            
+            // Loop until a non-finished player matches sequence index
+            if (roomData.players[roomData.playerOrder[nextTurnIndex]].status === "finished") {
+                i--; // Extend check loop offset step parameters
+            }
+        }
+        updates['/turnIndex'] = nextTurnIndex;
     }
+
+    roomRef.update(updates);
 }
 
-function updateLobbyPlayersList(players) {
-    const list = document.getElementById('players-list');
-    list.innerHTML = '';
-    for (let id in players) {
-        let p = players[id];
-        let role = p.isSpectator ? '<i class="fas fa-eye text-glow"></i>' : '<i class="fas fa-user-astronaut"></i>';
-        list.innerHTML += `<li>${role} ${p.name} ${id === myPlayerId ? '(You)' : ''}</li>`;
-    }
+function calculateNextTurnIndex(roomData) {
+    let direction = roomData.direction || 1;
+    let total = roomData.playerOrder.length;
+    let nextIdx = roomData.turnIndex;
+
+    do {
+        nextIdx = (nextIdx + direction) % total;
+        if (nextIdx < 0) nextIdx += total;
+    } while (roomData.players[roomData.playerOrder[nextIdx]].status === "finished");
+
+    return nextIdx;
 }
 
-function sendChatMessage(type) {
-    const inputId = type === 'lobby' ? 'lobby-chat-input' : 'ingame-chat-input';
-    const input = document.getElementById(inputId);
-    const msg = input.value.trim();
-    if (msg.length > 0 && currentRoomId) {
-        push(ref(db, `uno_rooms/${currentRoomId}/chats`), {
-            sender: myName, text: msg, time: new Date().toLocaleTimeString()
-        });
-        input.value = '';
-    }
+/* =========================================================
+   6. REALTIME CHAT TRANSMISSION
+   ========================================================= */
+document.getElementById('btn-send-lobby-chat').addEventListener('click', sendLobbyMessage);
+document.getElementById('lobby-chat-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') sendLobbyMessage(); });
+
+document.getElementById('btn-send-ingame-chat').addEventListener('click', sendInGameMessage);
+document.getElementById('ingame-chat-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') sendInGameMessage(); });
+
+function sendLobbyMessage() {
+    const inp = document.getElementById('lobby-chat-input');
+    const txt = inp.value.trim();
+    if(!txt) return;
+    roomRef.child('chat').push({ name: myPlayerName, message: txt });
+    inp.value = "";
 }
 
-function toggleIngameChat() {
+function sendInGameMessage() {
+    const inp = document.getElementById('ingame-chat-input');
+    const txt = inp.value.trim();
+    if(!txt) return;
+    roomRef.child('chat').push({ name: myPlayerName, message: txt });
+    inp.value = "";
+}
+
+function appendChatMessage(msg) {
+    const lobbyBox = document.getElementById('lobby-chat-messages');
+    const ingameBox = document.getElementById('ingame-chat-messages');
+    
+    let html = `<div><strong>${msg.name}:</strong> ${msg.message}</div>`;
+    lobbyBox.innerHTML += html;
+    ingameBox.innerHTML += html;
+    
+    lobbyBox.scrollTop = lobbyBox.scrollHeight;
+    ingameBox.scrollTop = ingameBox.scrollHeight;
+}
+
+// Collapsible In-game Chat Widget UI Trigger
+document.getElementById('ingame-chat-header').addEventListener('click', () => {
     const body = document.getElementById('ingame-chat-body');
     const icon = document.getElementById('chat-toggle-icon');
     body.classList.toggle('hidden');
-    icon.className = body.classList.contains('hidden') ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
-}
+    icon.className = body.classList.contains('hidden') ? "fas fa-chevron-up" : "fas fa-chevron-down";
+});
 
-function triggerUnoShout() {
-    if(myCards.length <= 2 && currentRoomId) {
-        push(ref(db, `uno_rooms/${currentRoomId}/chats`), {
-            sender: "SYSTEM", text: `🚨 ${myName.toUpperCase()} SHOUTED UNO! 🚨`, time: new Date().toLocaleTimeString()
-        });
-        alert("UNO Call Broadcasted!");
-    } else {
-        alert("You must have 2 or fewer cards to shout UNO!");
-    }
-}
-
-function startUnoGame() {
-    if (!isHost) return;
+/* =========================================================
+   7. MATCH OVER & AUTOMATIC RESET ROUTINES
+   ========================================================= */
+function renderGameOver(data) {
+    const winnerLabel = document.getElementById('final-winner-lbl');
+    const leaderboardList = document.getElementById('leaderboard-list');
     
-    let deck = [];
-    COLORS.forEach(color => {
-        VALUES.forEach(val => {
-            deck.push({color: color, value: val, type: 'normal'});
-            if(val !== '0') deck.push({color: color, value: val, type: 'normal'});
+    if (data.rankings && data.rankings.length > 0) {
+        winnerLabel.innerText = `WINNER: ${data.rankings[0].name.toUpperCase()}`;
+        leaderboardList.innerHTML = "";
+        data.rankings.forEach((rank, index) => {
+            leaderboardList.innerHTML += `<li><span>#${index + 1} ${rank.name}</span> <i class="fas fa-medal" style="color:${index===0?'#ffea00':index===1?'#cccccc':'#cd7f32'}"></i></li>`;
         });
-    });
-    for(let i=0; i<4; i++) deck.push({color: 'none', value: 'Wild', type: 'wild'});
-    deck.sort(() => Math.random() - 0.5);
+    }
 
-    onValue(ref(db, `uno_rooms/${currentRoomId}/players`), (snapshot) => {
-        const players = snapshot.val();
-        let playerIds = [];
-        for (let id in players) {
-            if (!players[id].isSpectator) {
-                let hand = deck.splice(0, 7);
-                set(ref(db, `uno_rooms/${currentRoomId}/players/${id}/cards`), hand);
-                set(ref(db, `uno_rooms/${currentRoomId}/players/${id}/cardCount`), 7);
-                playerIds.push(id);
-            }
-        }
-        let topCard = deck.find(c => c.type === 'normal');
-        deck.splice(deck.indexOf(topCard), 1);
+    const backBtn = document.getElementById('btn-back-to-lobby');
+    const nonHostMsg = document.getElementById('non-host-lobby-msg');
 
-        update(ref(db, `uno_rooms/${currentRoomId}`), {
-            state: 'playing', deck: deck, topCard: topCard, activeColor: topCard.color,
-            currentTurn: playerIds[0], turnOrder: playerIds, direction: 1
+    if (isHost) {
+        backBtn.classList.remove('hidden');
+        nonHostMsg.classList.add('hidden');
+    } else {
+        backBtn.classList.add('hidden');
+        nonHostMsg.classList.remove('hidden');
+    }
+}
+
+// HOST ACTION: RESET ENGINE AND RETURN TO LOBBY LOOP
+document.getElementById('btn-back-to-lobby').addEventListener('click', () => {
+    if(!isHost) return;
+    
+    // Maintain player list reference parameters, reset status arrays only
+    roomRef.once('value', snapshot => {
+        let roomData = snapshot.val();
+        let updates = {};
+        
+        updates['/status'] = "waiting";
+        updates['/currentCard'] = null;
+        updates['/turnIndex'] = 0;
+        updates['/direction'] = 1;
+        updates['/chat'] = { init: true }; // Flush transmission buffers
+
+        roomData.playerOrder.forEach(pid => {
+            updates[`/players/${pid}/cards`] = [];
+            updates[`/players/${pid}/status`] = "playing";
         });
-    }, { onlyOnce: true });
-}
 
-function transitionToGame() {
-    document.getElementById('waiting-screen').classList.add('hidden');
-    document.getElementById('hud').classList.remove('hidden');
-    if (amISpectator) {
-        document.getElementById('spectator-hud-alert').classList.remove('hidden');
-        document.getElementById('player-hand-section').classList.add('hidden');
-    }
-}
-
-function renderMyHand(cards) {
-    if (amISpectator) return;
-    const wrapper = document.getElementById('player-cards-wrapper');
-    document.getElementById('hand-count-lbl').innerText = `YOUR MATRIX: ${cards.length} CARDS`;
-    wrapper.innerHTML = '';
-    cards.forEach((card, index) => {
-        let cardClass = card.type === 'wild' ? 'card-wild' : `card-${card.color}`;
-        let displayVal = card.value === 'Reverse' ? '⟲' : (card.value === 'Skip' ? '⊘' : (card.value === 'Draw2' ? '+2' : card.value));
-        let cardDiv = document.createElement('div');
-        cardDiv.className = `playable-card ${cardClass}`;
-        cardDiv.innerText = displayVal;
-        cardDiv.onclick = () => attemptPlayCard(index);
-        wrapper.appendChild(cardDiv);
+        roomRef.update(updates);
     });
-}
-
-function renderTopCard(card) {
-    const pile = document.getElementById('discard-pile');
-    pile.classList.remove('empty-pile');
-    let cardClass = card.type === 'wild' ? 'card-wild shadow-glow' : `card-${card.color}`;
-    let displayVal = card.value === 'Reverse' ? '⟲' : (card.value === 'Skip' ? '⊘' : (card.value === 'Draw2' ? '+2' : card.value));
-    pile.className = `uno-card shadow-glow ${cardClass}`;
-    pile.innerHTML = displayVal;
-    currentColor = card.activeColor || card.color;
-    pile.style.borderColor = getCssColor(currentColor);
-}
-
-function getCssColor(color) {
-    switch(color) {
-        case 'red': return '#ff0055'; case 'blue': return '#00f0ff';
-        case 'green': return '#00ff66'; case 'yellow': return '#ffea00'; default: return '#fff';
-    }
-}
-
-function updateOpponentsArena(players) {
-    const arena = document.getElementById('opponents-arena');
-    arena.innerHTML = '';
-    for (let id in players) {
-        if (id !== myPlayerId && !players[id].isSpectator) {
-            let p = players[id];
-            let isTurn = (id === currentTurnId) ? 'active-turn' : '';
-            arena.innerHTML += `<div class="opp-avatar ${isTurn}"><div class="opp-card-back">${p.cardCount}</div><div class="opp-name">${p.name}</div></div>`;
-        }
-    }
-}
-
-function attemptPlayCard(cardIndex) {
-    if (currentTurnId !== myPlayerId) {
-        alert("Not your transmission turn!"); return;
-    }
-    const card = myCards[cardIndex];
-    onValue(ref(db, `uno_rooms/${currentRoomId}`), (snapshot) => {
-        const state = snapshot.val();
-        const top = state.topCard;
-        const activeCol = state.activeColor || top.color;
-        
-        if (card.color === activeCol || card.value === top.value || card.type === 'wild') {
-            if (card.type === 'wild') {
-                document.getElementById('color-chooser-overlay').classList.remove('hidden');
-                window.pendingCardIndex = cardIndex; 
-            } else {
-                executePlayCard(cardIndex, card, card.color);
-            }
-        } else { alert("Matrix Missalign! Card does not match color or value."); }
-    }, { onlyOnce: true });
-}
-
-function selectWildColor(color) {
-    document.getElementById('color-chooser-overlay').classList.add('hidden');
-    let card = myCards[window.pendingCardIndex];
-    executePlayCard(window.pendingCardIndex, card, color);
-}
-
-function executePlayCard(index, card, chosenColor) {
-    myCards.splice(index, 1);
-    update(ref(db, `uno_rooms/${currentRoomId}/players/${myPlayerId}`), { cards: myCards, cardCount: myCards.length });
-    let topCardUpdate = card; topCardUpdate.activeColor = chosenColor;
-    update(ref(db, `uno_rooms/${currentRoomId}`), { topCard: topCardUpdate, activeColor: chosenColor });
-    passTurnClientSide();
-}
-
-function drawCard() {
-    if (currentTurnId !== myPlayerId || amISpectator) return;
-    onValue(ref(db, `uno_rooms/${currentRoomId}/deck`), (snapshot) => {
-        let deck = snapshot.val() || [];
-        if(deck.length > 0) {
-            let drawn = deck.pop();
-            myCards.push(drawn);
-            update(ref(db, `uno_rooms/${currentRoomId}/players/${myPlayerId}`), { cards: myCards, cardCount: myCards.length });
-            update(ref(db, `uno_rooms/${currentRoomId}`), { deck: deck });
-            passTurnClientSide();
-        }
-    }, { onlyOnce: true });
-}
-
-/* ========================================================
-   BUG FIXED: TURN PASSING LOGIC (Skips Spectators Properly)
-   ======================================================== */
-function passTurnClientSide() {
-    onValue(ref(db, `uno_rooms/${currentRoomId}`), (snapshot) => {
-        let state = snapshot.val();
-        let order = state.turnOrder;
-        let players = state.players;
-        let currIdx = order.indexOf(myPlayerId);
-        let nextIdx = currIdx;
-        let foundNext = false;
-
-        // Loop to find the next active player who is NOT a spectator
-        for(let i = 0; i < order.length; i++) {
-            nextIdx = (nextIdx + state.direction + order.length) % order.length;
-            let nextPlayerId = order[nextIdx];
-            if(players[nextPlayerId] && !players[nextPlayerId].isSpectator) {
-                foundNext = true;
-                break;
-            }
-        }
-        
-        if(foundNext) {
-            update(ref(db, `uno_rooms/${currentRoomId}`), { currentTurn: order[nextIdx] });
-        } else {
-            // Only 1 person left, match over
-            update(ref(db, `uno_rooms/${currentRoomId}`), { state: 'finished' });
-        }
-    }, { onlyOnce: true });
-}
-
-function checkMyWinCondition(cardCount) {
-    if (cardCount === 0 && !amISpectator && currentRoomId) {
-        alert("You have cleared your Matrix Grid! Moving to Spectator Core...");
-        amISpectator = true;
-        update(ref(db, `uno_rooms/${currentRoomId}/players/${myPlayerId}`), { isSpectator: true });
-
-        onValue(ref(db, `uno_rooms/${currentRoomId}/leaderboard`), (snapshot) => {
-            let board = snapshot.val() || [];
-            if (!board.some(b => b.id === myPlayerId)) {
-                board.push({ name: myName, id: myPlayerId });
-                set(ref(db, `uno_rooms/${currentRoomId}/leaderboard`), board);
-            }
-            onValue(ref(db, `uno_rooms/${currentRoomId}/players`), (psnap) => {
-                const players = psnap.val();
-                let activeCount = Object.values(players).filter(p => !p.isSpectator).length;
-                if (activeCount <= 1) update(ref(db, `uno_rooms/${currentRoomId}`), { state: 'finished' });
-            }, { onlyOnce: true });
-        }, { onlyOnce: true });
-
-        document.getElementById('player-hand-section').classList.add('hidden');
-        document.getElementById('spectator-hud-alert').classList.remove('hidden');
-    }
-}
-
-function showGameOverScreen() {
-    document.getElementById('hud').classList.add('hidden');
-    document.getElementById('gameover-screen').classList.remove('hidden');
-    onValue(ref(db, `uno_rooms/${currentRoomId}/leaderboard`), (snapshot) => {
-        let board = snapshot.val() || [];
-        if(board.length > 0) document.getElementById('final-winner-lbl').innerText = `WINNER: ${board[0].name.toUpperCase()}`;
-    }, { onlyOnce: true });
-}
-
-function updateLeaderboardUI(leaders) {
-    let html = '';
-    leaders.forEach((l, index) => {
-        let medal = index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : '🏅'));
-        html += `<li>${medal} ${l.name}</li>`;
-    });
-    document.getElementById('leaderboard-list').innerHTML = html;
-    if(leaders.length > 0) {
-        document.getElementById('lobby-leaderboard').classList.remove('hidden');
-        document.getElementById('lobby-leaderboard-list').innerHTML = html;
-    }
-}
-
-function backToLobby() {
-    if(isHost) update(ref(db, `uno_rooms/${currentRoomId}`), { state: 'lobby' });
-}
-
-function resetToLobbyState() {
-    document.getElementById('gameover-screen').classList.add('hidden');
-    document.getElementById('hud').classList.add('hidden');
-    document.getElementById('waiting-screen').classList.remove('hidden');
-    amISpectator = false;
-    myCards = [];
-    document.getElementById('spectator-hud-alert').classList.add('hidden');
-    document.getElementById('player-hand-section').classList.remove('hidden');
-    update(ref(db, `uno_rooms/${currentRoomId}/players/${myPlayerId}`), { isSpectator: false, cardCount: 0, cards: [] });
-}
-
-function updateFooterTracker(players) {
-    const lanes = document.getElementById('tracker-lanes');
-    lanes.innerHTML = '';
-    let totalCardsLeft = 0;
-    for(let id in players) {
-        if(!players[id].isSpectator) {
-            let count = players[id].cardCount || 0;
-            totalCardsLeft += count;
-            let percentage = Math.max(0, 100 - ((count / 7) * 100)); 
-            let dot = document.createElement('div');
-            dot.className = 'player-progress-dot';
-            dot.style.left = `${percentage}%`;
-            dot.style.backgroundColor = (id === myPlayerId) ? '#ffea00' : '#00f0ff';
-            lanes.appendChild(dot);
-        }
-    }
-    document.getElementById('cards-left-tracker-txt').innerText = `${totalCardsLeft} CORE UNITS`;
-}
+});
