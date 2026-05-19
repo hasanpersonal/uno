@@ -22,6 +22,7 @@ const screens = {
 let myPlayerId = "";
 let currentRoomId = "";
 let isHost = false;
+let actionTriggeredByMe = null; // Animation track korar jonno flag ('play' ba 'draw')
 
 const UNO_COLORS = ["red", "blue", "green", "yellow"];
 const UNO_VALUES = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse"];
@@ -39,7 +40,7 @@ function switchScreen(screenName) {
     screens[screenName].style.display = 'block';
 }
 
-// CREATE ROOM (Updated)
+// CREATE ROOM
 document.getElementById('btn-create').addEventListener('click', () => {
     const name = document.getElementById('host-name').value.trim();
     if (!name) return alert("Enter your name!");
@@ -67,7 +68,7 @@ document.getElementById('btn-create').addEventListener('click', () => {
     });
 });
 
-// JOIN ROOM (Updated)
+// JOIN ROOM
 document.getElementById('btn-join').addEventListener('click', () => {
     const name = document.getElementById('join-name').value.trim();
     const roomId = document.getElementById('room-code-input').value.trim();
@@ -145,7 +146,7 @@ function listenToRoom() {
     });
 }
 
-// RENDER GAME BOARD (Updated with Animation & Span)
+// RENDER GAME BOARD (With Dynamic Multi-device Animation Logic)
 function renderGame(data) {
     const turnPlayerId = data.playerOrder[data.turnIndex];
     const isMyTurn = (turnPlayerId === myPlayerId);
@@ -153,9 +154,24 @@ function renderGame(data) {
     document.getElementById('turn-indicator').innerText = isMyTurn ? "🔥 YOUR TURN 🔥" : `${data.players[turnPlayerId].name}'s Turn`;
     document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#ffaa00";
 
+    // --- Dynamic Discard Pile Animation (Center Card) ---
     const centerCardDiv = document.getElementById('current-card');
-    centerCardDiv.className = `uno-card ${data.currentCard.color}`;
-    centerCardDiv.innerHTML = `<span>${data.currentCard.value}</span>`;
+    
+    // Check korbe card asset id change hoyeche kina (notun card mardise keu)
+    if (centerCardDiv.dataset.cardId !== data.currentCard.id) {
+        centerCardDiv.className = `uno-card ${data.currentCard.color}`;
+        centerCardDiv.innerHTML = `<span>${data.currentCard.value}</span>`;
+        
+        // Puran screen load e animation hobe na, shudhu realtime change e hobe
+        if (centerCardDiv.dataset.cardId) {
+            if (actionTriggeredByMe === 'play') {
+                centerCardDiv.classList.add('anim-play-me'); // Nijer screen e nich theke uree jabe
+            } else {
+                centerCardDiv.classList.add('anim-play-opp'); // Onno player der phone e upor theke drop hobe
+            }
+        }
+        centerCardDiv.dataset.cardId = data.currentCard.id;
+    }
 
     const opponentsArea = document.getElementById('opponents-area');
     opponentsArea.innerHTML = "";
@@ -167,6 +183,7 @@ function renderGame(data) {
         }
     });
 
+    // --- My Cards Hand Render ---
     const myHandDiv = document.getElementById('my-cards');
     myHandDiv.innerHTML = "";
     let myCards = data.players[myPlayerId].cards || [];
@@ -178,19 +195,22 @@ function renderGame(data) {
         cardDiv.className = `uno-card my-card-item ${card.color}`;
         cardDiv.innerHTML = `<span>${card.value}</span>`;
         
-        cardDiv.style.animationDelay = `${index * 0.05}s`;
+        // Jodi ami draw kore থাকি, tobe baki card static thakbe ar sudhu shesh notun card-ti draw anim hobe
+        if (actionTriggeredByMe === 'draw' && index === myCardsArray.length - 1) {
+            cardDiv.classList.add('anim-draw-me');
+        } else {
+            cardDiv.style.animationDelay = `${index * 0.05}s`;
+        }
 
         cardDiv.onclick = () => {
             if (!isMyTurn) return;
-
-            centerCardDiv.classList.remove('play-animation');
-            void centerCardDiv.offsetWidth; 
-            centerCardDiv.classList.add('play-animation');
-
             playCard(card, index, data);
         };
         myHandDiv.appendChild(cardDiv);
     });
+
+    // Code execution sesh hole temporary action type reset kore dibe
+    actionTriggeredByMe = null;
 }
 
 // PLAY CARD LOGIC
@@ -229,6 +249,9 @@ function playCard(card, cardIndex, roomData) {
     nextTurnIndex = (nextTurnIndex + direction) % totalPlayers;
     if (nextTurnIndex < 0) nextTurnIndex += totalPlayers;
 
+    // Local action update
+    actionTriggeredByMe = 'play';
+
     database.ref('rooms/' + currentRoomId).update({
         currentCard: card,
         turnIndex: nextTurnIndex,
@@ -254,6 +277,9 @@ document.getElementById('btn-draw').addEventListener('click', () => {
         let totalPlayers = roomData.playerOrder.length;
         let nextTurnIndex = (roomData.turnIndex + direction) % totalPlayers;
         if (nextTurnIndex < 0) nextTurnIndex += totalPlayers;
+
+        // Local action update
+        actionTriggeredByMe = 'draw';
 
         database.ref('rooms/' + currentRoomId).update({
             turnIndex: nextTurnIndex,
