@@ -18,29 +18,29 @@ const db = getDatabase(app);
 let currentRoomCode = null;
 let myPlayerId = null;
 let myName = "";
-let myRole = ""; 
 let isCreator = false;
 let gameState = null;
 let lastMainCardId = "";
+let roomListenerUnsubscribe = null;
 
 const entryScreen = document.getElementById('entry-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
+const gameOverScreen = document.getElementById('game-over-screen');
 const chatContainer = document.getElementById('chat-container');
 
 function enableFullscreen() {
     const docEl = document.documentElement;
     if (docEl.requestFullscreen) docEl.requestFullscreen();
     else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
-    else if (docEl.msRequestFullscreen) docEl.msRequestFullscreen();
 }
 
 document.getElementById('btn-create-room').addEventListener('click', () => { enableFullscreen(); handleRoomAction('create'); });
-document.getElementById('btn-join-player').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join-player'); });
-document.getElementById('btn-join-spectator').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join-spectator'); });
+document.getElementById('btn-join-player').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join'); });
 document.getElementById('btn-send-chat').addEventListener('click', sendChatMessage);
 document.getElementById('btn-start-game').addEventListener('click', startGame);
 document.getElementById('draw-pile').addEventListener('click', drawCardFromDeck);
+document.getElementById('btn-return-lobby').addEventListener('click', returnToLobbyIndividually);
 
 function handleRoomAction(action) {
     const createName = document.getElementById('create-player-name').value.trim();
@@ -52,7 +52,6 @@ function handleRoomAction(action) {
         myName = createName;
         currentRoomCode = Math.random().toString(36).substr(2, 6).toUpperCase();
         isCreator = true;
-        myRole = 'player';
         setupRoomInFirebase();
     } else {
         if (!joinName) return alert("Please enter your name to join!");
@@ -60,7 +59,6 @@ function handleRoomAction(action) {
         myName = joinName;
         currentRoomCode = inputCode;
         isCreator = false;
-        myRole = (action === 'join-player') ? 'player' : 'spectator';
         joinRoomInFirebase();
     }
 }
@@ -74,9 +72,9 @@ function setupRoomInFirebase() {
         currentTurn: 0,
         lastAction: { type: 'init', playerId: '', cardId: '' },
         players: {},
-        spectators: {}
+        standings: [] 
     };
-    initialData[myRole + 's'][myPlayerId] = { name: myName, id: myPlayerId };
+    initialData.players[myPlayerId] = { name: myName, id: myPlayerId };
 
     set(roomRef, initialData).then(() => {
         switchToScreen('lobby');
@@ -86,7 +84,7 @@ function setupRoomInFirebase() {
 
 function joinRoomInFirebase() {
     myPlayerId = 'user_' + Math.random().toString(36).substr(2, 9);
-    const userRef = ref(db, `rooms/${currentRoomCode}/${myRole}s/${myPlayerId}`);
+    const userRef = ref(db, `rooms/${currentRoomCode}/players/${myPlayerId}`);
     set(userRef, { name: myName, id: myPlayerId }).then(() => {
         switchToScreen('lobby');
         listenToRoomChanges();
@@ -99,21 +97,27 @@ function switchToScreen(screenType) {
     entryScreen.classList.add('hidden');
     lobbyScreen.classList.add('hidden');
     gameScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
     chatContainer.classList.add('hidden');
+
+    chatContainer.classList.remove('lobby-chat-style', 'game-chat-style', 'finished-chat-style');
 
     if (screenType === 'lobby') {
         lobbyScreen.classList.remove('hidden');
-        chatContainer.classList.remove('hidden'); // চ্যাটবক্স নিচে দৃশ্যমান হবে
+        chatContainer.classList.add('hidden', 'lobby-chat-style');
+        chatContainer.classList.remove('hidden');
         document.getElementById('display-room-code').innerText = currentRoomCode;
     } else if (screenType === 'game') {
         gameScreen.classList.remove('hidden');
         chatContainer.classList.remove('hidden');
+    } else if (screenType === 'gameover') {
+        gameOverScreen.classList.remove('hidden');
     }
 }
 
 function listenToRoomChanges() {
     const roomRef = ref(db, `rooms/${currentRoomCode}`);
-    onValue(roomRef, (snapshot) => {
+    roomListenerUnsubscribe = onValue(roomRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
         gameState = data;
@@ -123,37 +127,43 @@ function listenToRoomChanges() {
             if (gameState.status === 'lobby') document.getElementById('btn-start-game').classList.remove('hidden');
         }
 
-        updateLobbyLists(data.players, data.spectators);
+        updateLobbyLists(data.players);
         updateChatMessages(data.chat);
 
         if (gameState.status === 'playing') {
-            if (gameScreen.classList.contains('hidden')) switchToScreen('game');
+            if (gameScreen.classList.contains('hidden') && gameOverScreen.classList.contains('hidden')) {
+                switchToScreen('game');
+            }
             
-            const lastAction = gameState.lastAction;
-            if (lastAction && lastAction.cardId !== lastMainCardId) {
-                lastMainCardId = lastAction.cardId;
-                if (lastAction.playerId !== myPlayerId && lastAction.type === 'play') {
-                    triggerOpponentPlayAnimation(lastAction.card);
-                } else if (lastAction.playerId !== myPlayerId && lastAction.type === 'draw') {
-                    triggerOpponentDrawAnimation();
+            if (!gameScreen.classList.contains('hidden')) {
+                const lastAction = gameState.lastAction;
+                if (lastAction && lastAction.cardId !== lastMainCardId) {
+                    lastMainCardId = lastAction.cardId;
+                    if (lastAction.playerId !== myPlayerId && lastAction.type === 'play') {
+                        triggerOpponentPlayAnimation(lastAction.card);
+                    } else if (lastAction.playerId !== myPlayerId && lastAction.type === 'draw') {
+                        triggerOpponentDrawAnimation();
+                    } else {
+                        renderGameBoard();
+                    }
                 } else {
                     renderGameBoard();
                 }
-            } else {
-                renderGameBoard();
             }
         } else if (gameState.status === 'lobby' && !gameScreen.classList.contains('hidden')) {
             switchToScreen('lobby');
         }
+        
+        if (gameState.status === 'ended') {
+            renderStandingsScreen();
+        }
     });
 }
 
-function updateLobbyLists(players, spectators) {
+function updateLobbyLists(players) {
     const pList = document.getElementById('lobby-players');
-    const sList = document.getElementById('lobby-spectators');
-    pList.innerHTML = ""; sList.innerHTML = "";
+    pList.innerHTML = "";
     if (players) Object.values(players).forEach(p => pList.innerHTML += `<li>🎮 ${p.name}</li>`);
-    if (spectators) Object.values(spectators).forEach(s => sList.innerHTML += `<li>👁️ ${s.name}</li>`);
 }
 
 function sendChatMessage() {
@@ -186,6 +196,8 @@ function startGame() {
     deck.sort(() => Math.random() - 0.5);
 
     const playerIds = Object.keys(gameState.players);
+    if(playerIds.length < 2) return alert("Need at least 2 players to start!");
+
     const updatedPlayers = { ...gameState.players };
     playerIds.forEach(id => updatedPlayers[id].cards = deck.splice(0, 7));
 
@@ -199,6 +211,7 @@ function startGame() {
         players: updatedPlayers,
         turnOrder: playerIds,
         currentTurn: 0,
+        standings: [], 
         lastAction: { type: 'init', playerId: '', cardId: mainCard.id }
     });
 }
@@ -229,7 +242,14 @@ function renderGameBoard() {
     const handContainer = document.getElementById('player-hand');
     handContainer.innerHTML = "";
     
-    if (myRole === 'player' && gameState.players[myPlayerId]?.cards) {
+    // 🌟 Spectator / Finished View Logic 🌟
+    const isFinished = !turnOrder.includes(myPlayerId);
+
+    if (!isFinished && gameState.players[myPlayerId]?.cards) {
+        gameScreen.classList.remove('finished-view');
+        chatContainer.classList.remove('finished-chat-style');
+        if(!chatContainer.classList.contains('game-chat-style')) chatContainer.classList.add('game-chat-style');
+
         gameState.players[myPlayerId].cards.forEach((card, index) => {
             const cardEl = createCardDOM(card);
             cardEl.addEventListener('click', (e) => {
@@ -242,8 +262,10 @@ function renderGameBoard() {
             });
             handContainer.appendChild(cardEl);
         });
-    } else if (myRole === 'spectator') {
-        handContainer.innerHTML = "<p style='color:#95a5a6;font-size:0.9rem;'>Spectating match...</p>";
+    } else {
+        gameScreen.classList.add('finished-view'); // Scales down the board automatically via CSS
+        chatContainer.classList.remove('game-chat-style');
+        chatContainer.classList.add('finished-chat-style'); // Expands chat to 75%
     }
 }
 
@@ -260,7 +282,6 @@ function createCardDOM(card) {
     return div;
 }
 
-// 2x অ্যানিমেশন সাইজিং যুক্ত করা হয়েছে
 function playMyCard(cardIndex, cardData, cardElement) {
     const rect = cardElement.getBoundingClientRect();
     const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
@@ -272,7 +293,7 @@ function playMyCard(cardIndex, cardData, cardElement) {
     document.getElementById('animation-layer').appendChild(flyingCard);
 
     setTimeout(() => {
-        flyingCard.classList.add('main-card-size'); // উড়ে যাওয়ার সময় কার্ডটি ২ গুণ বড় হবে
+        flyingCard.classList.add('main-card-size');
         flyingCard.style.left = `${mainPileRect.left}px`;
         flyingCard.style.top = `${mainPileRect.top}px`;
         flyingCard.style.transform = `rotate(${Math.random() * 20 - 10}deg)`;
@@ -288,7 +309,7 @@ function triggerOpponentPlayAnimation(cardData) {
     const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
     const flyingCard = createCardDOM(cardData);
     flyingCard.classList.add('flying-card');
-    flyingCard.classList.add('main-card-size'); // অপোনেন্টের কার্ড শুরু থেকেই ২ গুণ বড় থাকবে
+    flyingCard.classList.add('main-card-size');
     
     flyingCard.style.left = `50%`;
     flyingCard.style.top = `-250px`;
@@ -334,27 +355,29 @@ function submitCardToFirebase(cardIndex, cardData) {
 
     const updates = {};
     let turnOrder = [...gameState.turnOrder];
+    let currentStandings = gameState.standings ? [...gameState.standings] : [];
+    let currentTurn = gameState.currentTurn;
 
     if (myCards.length === 0) {
-        alert("Victory! You out of cards. Switching to spectator mode.");
-        updates[`rooms/${currentRoomCode}/spectators/${myPlayerId}`] = { name: myName, id: myPlayerId };
-        updates[`rooms/${currentRoomCode}/players/${myPlayerId}`] = null;
-        myRole = 'spectator';
+        currentStandings.push(myName);
+        updates[`rooms/${currentRoomCode}/standings`] = currentStandings;
         turnOrder = turnOrder.filter(id => id !== myPlayerId);
         updates[`rooms/${currentRoomCode}/turnOrder`] = turnOrder;
+        if (currentTurn >= turnOrder.length) currentTurn = 0;
     } else {
         updates[`rooms/${currentRoomCode}/players/${myPlayerId}/cards`] = myCards;
+        currentTurn = (currentTurn + 1) % turnOrder.length;
     }
 
-    if (turnOrder.length <= 1) {
-        alert("Game Over! Returning to lobby.");
-        updates[`rooms/${currentRoomCode}/status`] = "lobby";
-    } else {
-        let nextTurn = gameState.currentTurn;
-        if (nextTurn >= turnOrder.length) nextTurn = 0;
-        else nextTurn = (nextTurn + 1) % turnOrder.length;
+    if (turnOrder.length === 1) {
+        const lastPlayerId = turnOrder[0];
+        const lastPlayerName = gameState.players[lastPlayerId].name;
+        currentStandings.push(lastPlayerName);
         
-        updates[`rooms/${currentRoomCode}/currentTurn`] = nextTurn;
+        updates[`rooms/${currentRoomCode}/standings`] = currentStandings;
+        updates[`rooms/${currentRoomCode}/status`] = "ended"; 
+    } else {
+        updates[`rooms/${currentRoomCode}/currentTurn`] = currentTurn;
     }
 
     updates[`rooms/${currentRoomCode}/mainCard`] = cardData;
@@ -365,7 +388,7 @@ function submitCardToFirebase(cardIndex, cardData) {
 
 function drawCardFromDeck() {
     const turnOrder = gameState.turnOrder || [];
-    if (turnOrder[gameState.currentTurn] !== myPlayerId || myRole !== 'player') return alert("Not your turn!");
+    if (!turnOrder.includes(myPlayerId) || turnOrder[gameState.currentTurn] !== myPlayerId) return alert("Not your turn!");
 
     let deck = [...(gameState.deck || [])];
     if (deck.length === 0) return alert("Deck is empty!");
@@ -400,4 +423,34 @@ function drawCardFromDeck() {
         updates[`rooms/${currentRoomCode}/lastAction`] = { type: 'draw', playerId: myPlayerId, cardId: drawnCard.id };
         update(ref(db), updates);
     }, 550);
+}
+
+function renderStandingsScreen() {
+    switchToScreen('gameover');
+    const container = document.getElementById('standings-list');
+    container.innerHTML = "";
+
+    const finalStandings = gameState.standings || [];
+    finalStandings.forEach((name, index) => {
+        const rank = index + 1;
+        const rankClass = rank === 1 ? 'rank-1' : '';
+        const trophy = rank === 1 ? '👑' : '⚫';
+        container.innerHTML += `
+            <div class="standing-item ${rankClass}">
+                <span>${trophy} Rank ${rank}: ${name}</span>
+                <span>${rank === 1 ? 'Winner' : 'Done'}</span>
+            </div>
+        `;
+    });
+}
+
+function returnToLobbyIndividually() {
+    if (roomListenerUnsubscribe) {
+        roomListenerUnsubscribe(); 
+    }
+    const roomRef = ref(db, `rooms/${currentRoomCode}/players/${myPlayerId}`);
+    set(roomRef, { name: myName, id: myPlayerId }).then(() => {
+        listenToRoomChanges();
+        switchToScreen('lobby');
+    });
 }
