@@ -1,117 +1,124 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Uno Online Multiplayer</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="app-container">
         
-        <!-- ১. এন্ট্রি বা লগিন স্ক্রিন -->
+        <!-- 1. Entry / Login Screen -->
         <section id="entry-screen" class="screen active">
             <div class="glass-panel">
                 <h1>UNO Online</h1>
                 
-                <div class="input-group">
-                    <label for="player-name">প্লেয়ারের নাম:</label>
-                    <input type="text" id="player-name" placeholder="আপনার নাম লিখুন..." required>
-                </div>
-                
-                <div class="input-group">
-                    <label for="room-code">রুম কোড (শুধু জয়েন করার জন্য):</label>
-                    <input type="text" id="room-code" placeholder="রুম কোড লিখুন...">
+                <!-- Section for Creating Room -->
+                <div class="action-block">
+                    <h3>Create a New Room</h3>
+                    <div class="input-group">
+                        <label for="create-player-name">Your Name:</label>
+                        <input type="text" id="create-player-name" placeholder="Enter your name...">
+                    </div>
+                    <button id="btn-create-room" class="btn primary">Create Room</button>
                 </div>
 
-                <div class="button-group">
-                    <button id="btn-create-room" class="btn primary">Create Room</button>
-                    <button id="btn-join-player" class="btn secondary">Join as Player</button>
-                    <button id="btn-join-spectator" class="btn spectator">Join as Spectator</button>
+                <div class="divider">OR</div>
+
+                <!-- Section for Joining Room -->
+                <div class="action-block">
+                    <h3>Join Existing Room</h3>
+                    <div class="input-group">
+                        <label for="join-player-name">Your Name:</label>
+                        <input type="text" id="join-player-name" placeholder="Enter your name...">
+                    </div>
+                    <div class="input-group">
+                        <label for="room-code">Room Code:</label>
+                        <input type="text" id="room-code" placeholder="Enter 6-digit code...">
+                    </div>
+                    <div class="button-row">
+                        <button id="btn-join-player" class="btn secondary">Join as Player</button>
+                        <button id="btn-join-spectator" class="btn spectator">Join as Spectator</button>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- ২. লবি স্ক্রিন -->
+        <!-- 2. Lobby Screen -->
         <section id="lobby-screen" class="screen hidden">
             <div class="lobby-header">
-                <h2>রুম লবি</h2>
-                <div class="room-info">রুম কোড: <span id="display-room-code" class="highlight-text">---</span></div>
+                <h2>Game Lobby</h2>
+                <div class="room-info">Room Code: <span id="display-room-code" class="highlight-text">---</span></div>
             </div>
             
             <div class="lobby-content">
-                <div class="players-section">
-                    <h3>প্লেয়ার তালিকা</h3>
+                <div class="lobby-box">
+                    <h3>Players</h3>
                     <ul id="lobby-players" class="user-list"></ul>
                 </div>
-                <div class="spectators-section">
-                    <h3>দর্শক (Spectators)</h3>
+                <div class="lobby-box">
+                    <h3>Spectators</h3>
                     <ul id="lobby-spectators" class="user-list"></ul>
                 </div>
             </div>
 
             <div class="lobby-footer">
-                <!-- শুধুমাত্র রুম ক্রিয়েটর এই বাটন দেখতে পাবে -->
                 <button id="btn-start-game" class="btn primary hidden">Start Game</button>
             </div>
         </section>
 
-        <!-- ৩. গেম স্ক্রিন -->
+        <!-- 3. Game Screen -->
         <section id="game-screen" class="screen hidden">
-            <!-- টপ বার: টার্ন এবং প্লেয়ার অর্ডার -->
+            <!-- Top Bar -->
             <div class="game-header">
                 <div class="current-turn-display">
-                    <h3>বর্তমান টার্ন: <span id="active-player-name" class="highlight-text">অপেক্ষমান...</span></h3>
+                    <h3>Turn: <span id="active-player-name" class="highlight-text">Waiting...</span></h3>
                 </div>
                 <div class="turn-order-list">
-                    <h4>টার্ন সিরিয়াল:</h4>
                     <div id="player-turn-order"></div>
                 </div>
             </div>
 
-            <!-- মূল গেম এরিয়া -->
+            <!-- Main Board -->
             <div class="game-board">
                 <div class="center-table">
-                    <!-- মেইন কার্ড (যেখানে কার্ড ফেলা হবে) -->
-                    <div id="main-pile" class="card-slot main-card">
-                        <!-- ডাইনামিকালি রিয়েল কার্ডের মত ডিজাইন এখানে আসবে -->
-                    </div>
+                    <!-- Main Card Pile -->
+                    <div id="main-pile" class="card-slot main-card"></div>
                     
-                    <!-- ড্র কার্ড (এখান থেকে নতুন কার্ড তুলবে) -->
+                    <!-- Draw Card Pile -->
                     <div id="draw-pile" class="card-slot draw-deck">
                         <div class="card-back">UNO</div>
                     </div>
                 </div>
                 
-                <!-- অ্যানিমেশনের জন্য একটি অদৃশ্য কন্টেইনার -->
                 <div id="animation-layer"></div>
             </div>
 
-            <!-- প্লেয়ারের নিজের কার্ড (নিচে থাকবে) -->
+            <!-- Player Hand (Bottom) -->
             <div class="player-hand-area">
-                <div id="player-hand" class="cards-container">
-                    <!-- কার্ডগুলো এখানে আসবে, বেশি হলে পরের লাইনে চলে যাবে -->
-                </div>
+                <div id="player-hand" class="cards-container"></div>
             </div>
         </section>
 
-        <!-- ৪. গ্লোবাল চ্যাটবক্স (লবি এবং গেমপ্লে উভয় স্থানে থাকবে) -->
-        <div id="chat-container" class="chat-box hidden">
+        <!-- Toggle Chat Button for Mobile -->
+        <button id="btn-toggle-chat" class="chat-toggle-btn">💬 Chat</button>
+
+        <!-- 4. Chatbox -->
+        <div id="chat-container" class="chat-box chat-closed hidden">
             <div class="chat-header">
-                <h4>লাইভ চ্যাট</h4>
+                <h4>Live Chat</h4>
+                <button id="btn-close-chat" class="chat-close-x">×</button>
             </div>
-            <div id="chat-messages" class="chat-messages">
-                <!-- মেসেজগুলো এখানে দেখাবে -->
-            </div>
+            <div id="chat-messages" class="chat-messages"></div>
             <div class="chat-input-area">
-                <input type="text" id="chat-input" placeholder="মেসেজ লিখুন...">
-                <button id="btn-send-chat" class="btn-send">পাঠান</button>
+                <input type="text" id="chat-input" placeholder="Type a message...">
+                <button id="btn-send-chat" class="btn-send">Send</button>
             </div>
         </div>
 
     </div>
 
-    <!-- ফায়ারবেস এবং মেইন জাভাস্ক্রিপ্ট ফাইল কানেকশন -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
