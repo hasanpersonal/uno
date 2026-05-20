@@ -20,14 +20,19 @@ let myPlayerId = null;
 let myName = "";
 let isCreator = false;
 let gameState = null;
-let lastMainCardId = "";
+let lastActionId = ""; // 🌟 Bug Fix: Action ID tracking for precise animations
 let roomListenerUnsubscribe = null;
+let totalMessagesSeen = 0;
+let hasTurnNotified = false; // Prevents turn overlay from looping continuously
 
 const entryScreen = document.getElementById('entry-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
-const chatContainer = document.getElementById('chat-container');
+
+// Chat UI Selectors
+const gameChatPanel = document.getElementById('game-chat-panel');
+const chatBadge = document.getElementById('chat-badge');
 
 function enableFullscreen() {
     const docEl = document.documentElement;
@@ -35,9 +40,23 @@ function enableFullscreen() {
     else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
 }
 
+// Global Event Listeners
 document.getElementById('btn-create-room').addEventListener('click', () => { enableFullscreen(); handleRoomAction('create'); });
 document.getElementById('btn-join-player').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join'); });
-document.getElementById('btn-send-chat').addEventListener('click', sendChatMessage);
+
+// Separate Chat Button Triggers
+document.getElementById('btn-send-lobby-chat').addEventListener('click', () => sendChatMessage('lobby'));
+document.getElementById('btn-send-game-chat').addEventListener('click', () => sendChatMessage('game'));
+
+// Chat Panel Open/Close Toggle
+document.getElementById('btn-toggle-chat').addEventListener('click', () => {
+    gameChatPanel.classList.remove('hidden');
+    chatBadge.classList.add('hidden'); // Clear badge notification
+});
+document.getElementById('btn-close-chat').addEventListener('click', () => {
+    gameChatPanel.classList.add('hidden');
+});
+
 document.getElementById('btn-start-game').addEventListener('click', startGame);
 document.getElementById('draw-pile').addEventListener('click', drawCardFromDeck);
 document.getElementById('btn-return-lobby').addEventListener('click', returnToLobbyIndividually);
@@ -70,7 +89,7 @@ function setupRoomInFirebase() {
         creator: myPlayerId,
         status: "lobby",
         currentTurn: 0,
-        lastAction: { type: 'init', playerId: '', cardId: '' },
+        lastAction: { type: 'init', playerId: '', cardId: '', actionId: 'init_id' },
         players: {},
         standings: [] 
     };
@@ -98,18 +117,12 @@ function switchToScreen(screenType) {
     lobbyScreen.classList.add('hidden');
     gameScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
-    chatContainer.classList.add('hidden');
-
-    chatContainer.classList.remove('lobby-chat-style', 'game-chat-style', 'finished-chat-style');
 
     if (screenType === 'lobby') {
         lobbyScreen.classList.remove('hidden');
-        chatContainer.classList.add('hidden', 'lobby-chat-style');
-        chatContainer.classList.remove('hidden');
         document.getElementById('display-room-code').innerText = currentRoomCode;
     } else if (screenType === 'game') {
         gameScreen.classList.remove('hidden');
-        chatContainer.classList.remove('hidden');
     } else if (screenType === 'gameover') {
         gameOverScreen.classList.remove('hidden');
     }
@@ -137,8 +150,9 @@ function listenToRoomChanges() {
             
             if (!gameScreen.classList.contains('hidden')) {
                 const lastAction = gameState.lastAction;
-                if (lastAction && lastAction.cardId !== lastMainCardId) {
-                    lastMainCardId = lastAction.cardId;
+                // 🌟 Bug Fix: Using unique actionId instead of cardId to fix 'draw & play same card' animation bug
+                if (lastAction && lastAction.actionId !== lastActionId) {
+                    lastActionId = lastAction.actionId;
                     if (lastAction.playerId !== myPlayerId && lastAction.type === 'play') {
                         triggerOpponentPlayAnimation(lastAction.card);
                     } else if (lastAction.playerId !== myPlayerId && lastAction.type === 'draw') {
@@ -166,8 +180,9 @@ function updateLobbyLists(players) {
     if (players) Object.values(players).forEach(p => pList.innerHTML += `<li>🎮 ${p.name}</li>`);
 }
 
-function sendChatMessage() {
-    const input = document.getElementById('chat-input');
+function sendChatMessage(type) {
+    const inputId = type === 'lobby' ? 'lobby-chat-input' : 'game-chat-input';
+    const input = document.getElementById(inputId);
     const msg = input.value.trim();
     if (!msg) return;
     push(ref(db, `rooms/${currentRoomCode}/chat`), { sender: myName, text: msg });
@@ -175,11 +190,32 @@ function sendChatMessage() {
 }
 
 function updateChatMessages(chatData) {
-    const container = document.getElementById('chat-messages');
-    container.innerHTML = "";
+    const lobbyContainer = document.getElementById('lobby-chat-messages');
+    const gameContainer = document.getElementById('game-chat-messages');
+    
+    lobbyContainer.innerHTML = "";
+    gameContainer.innerHTML = "";
+    
     if (!chatData) return;
-    Object.values(chatData).forEach(m => container.innerHTML += `<div class="chat-message"><strong>${m.sender}:</strong> ${m.text}</div>`);
-    container.scrollTop = container.scrollHeight;
+    
+    const messages = Object.values(chatData);
+    
+    messages.forEach(m => {
+        const template = `<div class="chat-message"><strong>${m.sender}:</strong> ${m.text}</div>`;
+        lobbyContainer.innerHTML += template;
+        gameContainer.innerHTML += template;
+    });
+
+    lobbyContainer.scrollTop = lobbyContainer.scrollHeight;
+    gameContainer.scrollTop = gameContainer.scrollHeight;
+
+    // Flashy Notification Trigger
+    if (messages.length > totalMessagesSeen) {
+        if (gameState && gameState.status === 'playing' && gameChatPanel.classList.contains('hidden')) {
+            chatBadge.classList.remove('hidden'); 
+        }
+        totalMessagesSeen = messages.length;
+    }
 }
 
 function startGame() {
@@ -202,7 +238,10 @@ function startGame() {
     playerIds.forEach(id => updatedPlayers[id].cards = deck.splice(0, 7));
 
     const mainCard = deck.pop();
-    lastMainCardId = mainCard.id;
+    
+    // Create initial tracking actionId
+    const initialActionId = 'start_' + Math.random().toString(36).substr(2, 9);
+    lastActionId = initialActionId;
 
     update(ref(db, `rooms/${currentRoomCode}`), {
         status: "playing",
@@ -212,7 +251,7 @@ function startGame() {
         turnOrder: playerIds,
         currentTurn: 0,
         standings: [], 
-        lastAction: { type: 'init', playerId: '', cardId: mainCard.id }
+        lastAction: { type: 'init', playerId: '', cardId: mainCard.id, actionId: initialActionId }
     });
 }
 
@@ -223,6 +262,22 @@ function renderGameBoard() {
     if (activePlayerId) {
         const activeName = gameState.players[activePlayerId]?.name || "Unknown";
         document.getElementById('active-player-name').innerText = (activePlayerId === myPlayerId) ? "YOUR TURN!" : `${activeName}'s Turn`;
+
+        // YOUR TURN FLASHY POPUP OVERLAY
+        if (activePlayerId === myPlayerId) {
+            if (!hasTurnNotified) {
+                const turnOverlay = document.getElementById('your-turn-overlay');
+                turnOverlay.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    turnOverlay.classList.add('hidden');
+                }, 1500);
+                
+                hasTurnNotified = true;
+            }
+        } else {
+            hasTurnNotified = false; 
+        }
     }
 
     const orderContainer = document.getElementById('player-turn-order');
@@ -242,13 +297,11 @@ function renderGameBoard() {
     const handContainer = document.getElementById('player-hand');
     handContainer.innerHTML = "";
     
-    // 🌟 Spectator / Finished View Logic 🌟
     const isFinished = !turnOrder.includes(myPlayerId);
 
+    // 🌟 Bug Fix: Safe check for active players and scaled-down view for finished players
     if (!isFinished && gameState.players[myPlayerId]?.cards) {
         gameScreen.classList.remove('finished-view');
-        chatContainer.classList.remove('finished-chat-style');
-        if(!chatContainer.classList.contains('game-chat-style')) chatContainer.classList.add('game-chat-style');
 
         gameState.players[myPlayerId].cards.forEach((card, index) => {
             const cardEl = createCardDOM(card);
@@ -262,10 +315,10 @@ function renderGameBoard() {
             });
             handContainer.appendChild(cardEl);
         });
-    } else {
-        gameScreen.classList.add('finished-view'); // Scales down the board automatically via CSS
-        chatContainer.classList.remove('game-chat-style');
-        chatContainer.classList.add('finished-chat-style'); // Expands chat to 75%
+    } else if (isFinished) {
+        // Automatically scales down the board via CSS and handles the finished layout
+        gameScreen.classList.add('finished-view');
+        chatBadge.classList.add('hidden');
     }
 }
 
@@ -380,8 +433,9 @@ function submitCardToFirebase(cardIndex, cardData) {
         updates[`rooms/${currentRoomCode}/currentTurn`] = currentTurn;
     }
 
+    const uniqueActionId = 'play_' + Math.random().toString(36).substr(2, 9);
     updates[`rooms/${currentRoomCode}/mainCard`] = cardData;
-    updates[`rooms/${currentRoomCode}/lastAction`] = { type: 'play', playerId: myPlayerId, cardId: cardData.id, card: cardData };
+    updates[`rooms/${currentRoomCode}/lastAction`] = { type: 'play', playerId: myPlayerId, cardId: cardData.id, card: cardData, actionId: uniqueActionId };
     
     update(ref(db), updates);
 }
@@ -417,10 +471,12 @@ function drawCardFromDeck() {
         flyingCard.remove();
         const nextTurn = (gameState.currentTurn + 1) % turnOrder.length;
         const updates = {};
+        const uniqueActionId = 'draw_' + Math.random().toString(36).substr(2, 9);
+        
         updates[`rooms/${currentRoomCode}/deck`] = deck;
         updates[`rooms/${currentRoomCode}/players/${myPlayerId}/cards`] = myCards;
         updates[`rooms/${currentRoomCode}/currentTurn`] = nextTurn;
-        updates[`rooms/${currentRoomCode}/lastAction`] = { type: 'draw', playerId: myPlayerId, cardId: drawnCard.id };
+        updates[`rooms/${currentRoomCode}/lastAction`] = { type: 'draw', playerId: myPlayerId, cardId: drawnCard.id, actionId: uniqueActionId };
         update(ref(db), updates);
     }, 550);
 }
@@ -444,13 +500,25 @@ function renderStandingsScreen() {
     });
 }
 
+// 🌟 FIX FOR "RETURN TO LOBBY" BUTTON
 function returnToLobbyIndividually() {
     if (roomListenerUnsubscribe) {
         roomListenerUnsubscribe(); 
     }
-    const roomRef = ref(db, `rooms/${currentRoomCode}/players/${myPlayerId}`);
-    set(roomRef, { name: myName, id: myPlayerId }).then(() => {
-        listenToRoomChanges();
+
+    hasTurnNotified = false;
+    lastActionId = "";
+
+    const updates = {};
+    updates[`rooms/${currentRoomCode}/status`] = "lobby";
+    updates[`rooms/${currentRoomCode}/players/${myPlayerId}/cards`] = null;
+    updates[`rooms/${currentRoomCode}/standings`] = null;
+    updates[`rooms/${currentRoomCode}/turnOrder`] = null;
+
+    update(ref(db), updates).then(() => {
+        listenToRoomChanges(); 
         switchToScreen('lobby');
+    }).catch(err => {
+        console.error("Error returning to lobby:", err);
     });
 }
