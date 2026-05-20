@@ -3,144 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Uno Online Multiplayer</title>
+    <title>Hasan's UNO Online</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 🔥 Flashy Turn Notification Overlay -->
-    <div id="your-turn-overlay" class="hidden">
-        <h1 class="bounce-in">YOUR TURN!</h1>
+
+    <!-- ANIMATION LAYER -->
+    <div id="animation-layer"></div>
+
+    <!-- ENTRY SCREEN -->
+    <div id="entry-screen" class="screen-container">
+        <div class="card panel">
+            <h1>🎨 UNO ONLINE</h1>
+            <p>Create or Join a Room to Play with Friends</p>
+            
+            <div class="action-box">
+                <h3>Create Room</h3>
+                <input type="text" id="create-player-name" placeholder="Enter Your Name" maxlength="15">
+                <button id="btn-create-room" class="btn btn-primary">Create Room</button>
+            </div>
+            
+            <div class="divider"><span>OR</span></div>
+            
+            <div class="action-box">
+                <h3>Join Room</h3>
+                <input type="text" id="join-player-name" placeholder="Enter Your Name" maxlength="15">
+                <input type="text" id="room-code" placeholder="4-Digit Room Code" maxlength="4">
+                <button id="btn-join-player" class="btn btn-success">Join Room</button>
+            </div>
+        </div>
     </div>
 
-    <div id="app-container">
-        <div id="screens-area">
+    <!-- LOBBY SCREEN -->
+    <div id="lobby-screen" class="hidden screen-container">
+        <div class="lobby-layout">
+            <div class="lobby-main panel">
+                <h2>🏠 Room Code: <span id="display-room-code">----</span></h2>
+                <p>Waiting for players to join...</p>
+                
+                <h3>Players in Lobby:</h3>
+                <ul id="lobby-players"></ul>
+                
+                <button id="btn-start-game" class="btn btn-primary hidden">🚀 Start Game</button>
+            </div>
             
-            <!-- 1. Entry / Login Screen -->
-            <section id="entry-screen" class="screen active">
-                <div class="glass-panel">
-                    <h1>UNO Online</h1>
-                    
-                    <div class="action-block">
-                        <h3>Create a New Room</h3>
-                        <div class="input-group">
-                            <label for="create-player-name">Your Name:</label>
-                            <input type="text" id="create-player-name" placeholder="Enter your name...">
-                        </div>
-                        <button id="btn-create-room" class="btn primary">Create Room</button>
-                    </div>
-
-                    <div class="divider">OR</div>
-
-                    <div class="action-block">
-                        <h3>Join Existing Room</h3>
-                        <div class="input-group">
-                            <label for="join-player-name">Your Name:</label>
-                            <input type="text" id="join-player-name" placeholder="Enter your name...">
-                        </div>
-                        <div class="input-group">
-                            <label for="room-code">Room Code:</label>
-                            <input type="text" id="room-code" placeholder="Enter 4-digit code..." maxlength="4" inputmode="numeric">
-                        </div>
-                        <div class="button-row">
-                            <button id="btn-join-player" class="btn secondary">Join Game</button>
-                        </div>
-                    </div>
+            <!-- Lobby Sidebar Chat -->
+            <div class="lobby-sidebar panel">
+                <h3>💬 Room Chat</h3>
+                <div id="lobby-chat-messages" class="chat-messages"></div>
+                <div class="chat-input-box">
+                    <input type="text" id="lobby-chat-input" placeholder="Type a message...">
+                    <button id="btn-send-lobby-chat" class="btn">Send</button>
                 </div>
-            </section>
+            </div>
+        </div>
+    </div>
 
-            <!-- 2. Lobby Screen (🌟 Chat ekhon Center-e) -->
-            <section id="lobby-screen" class="screen hidden">
-                <div class="glass-panel lobby-panel">
-                    <div class="lobby-header">
-                        <h2>Game Lobby</h2>
-                        <div class="room-info">Room Code: <span id="display-room-code" class="highlight-text">---</span></div>
-                    </div>
-                    
-                    <div class="lobby-body">
-                        <div class="lobby-box">
-                            <h3>Players Connected</h3>
-                            <ul id="lobby-players" class="user-list"></ul>
-                        </div>
-                        
-                        <!-- Premium Lobby Chat Container -->
-                        <div class="lobby-chat-box">
-                            <h3>Room Chat</h3>
-                            <div id="lobby-chat-messages" class="chat-messages"></div>
-                            <div class="chat-input-area">
-                                <input type="text" id="lobby-chat-input" placeholder="Say hi...">
-                                <button id="btn-send-lobby-chat" class="btn-send">Send</button>
-                            </div>
-                        </div>
-                    </div>
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="hidden screen-container">
+        
+        <!-- Flashy Your Turn Overlay -->
+        <div id="your-turn-overlay" class="hidden">YOUR TURN!</div>
 
-                    <div class="lobby-footer">
-                        <button id="btn-start-game" class="btn primary hidden">Start Game</button>
-                    </div>
+        <!-- Stylish Header For Player Info -->
+        <div class="game-header-box">
+            <h2 id="active-player-name">Waiting...</h2>
+            <div id="player-turn-order"></div>
+        </div>
+
+        <!-- Game Board (Middle) -->
+        <div id="game-board" class="board-container">
+            <div id="draw-pile" class="uno-card color-black deck-card">
+                <div class="card-inner">
+                    <div class="card-value" style="font-size: 24px;">UNO</div>
                 </div>
-            </section>
+            </div>
+            <div id="main-pile"></div>
+        </div>
 
-            <!-- 3. Game Screen -->
-            <section id="game-screen" class="screen hidden">
-                <!-- Top Bar -->
-                <div class="game-header">
-                    <div class="current-turn-display">
-                        <h3>Turn: <span id="active-player-name" class="highlight-text">Waiting...</span></h3>
-                    </div>
-                    <div class="turn-order-list">
-                        <div id="player-turn-order"></div>
-                    </div>
-                </div>
+        <!-- Bigger Card Container (Bottom) -->
+        <div id="player-hand-wrapper">
+            <div id="player-hand"></div>
+        </div>
 
-                <!-- Main Board -->
-                <div class="game-board">
-                    <div id="draw-pile" class="card-slot draw-deck">
-                        <div class="uno-card">
-                            <div class="card-inner">
-                                <div class="card-back">DRAW<br>CARD</div>
-                            </div>
-                        </div>
-                    </div>
+        <!-- Floating Chat Icon Trigger -->
+        <button id="btn-toggle-chat" class="floating-chat-btn">
+            💬 <span id="chat-badge" class="hidden"></span>
+        </button>
 
-                    <div class="center-table">
-                        <div id="main-pile" class="card-slot main-card"></div>
-                    </div>
-                    
-                    <div id="animation-layer"></div>
-                </div>
+        <!-- Slide-in In-Game Chat Panel -->
+        <div id="game-chat-panel" class="hidden panel">
+            <div class="chat-panel-header">
+                <h3>💬 Game Chat</h3>
+                <button id="btn-close-chat" class="btn-close">✖</button>
+            </div>
+            <div id="game-chat-messages" class="chat-messages"></div>
+            <div class="chat-input-box">
+                <input type="text" id="game-chat-input" placeholder="Say something...">
+                <button id="btn-send-game-chat" class="btn">Send</button>
+            </div>
+        </div>
 
-                <!-- Player Hand -->
-                <div class="player-hand-area">
-                    <div id="player-hand" class="cards-container"></div>
-                </div>
+    </div>
 
-                <!-- 🌟 Floating Premium Chat Widget 🌟 -->
-                <div id="floating-chat-widget">
-                    <button id="btn-toggle-chat" class="chat-toggle-btn">
-                        💬 <span id="chat-badge" class="badge hidden">New</span>
-                    </button>
-                    <div id="game-chat-panel" class="premium-chat-panel hidden">
-                        <div class="chat-header">
-                            <h4>Game Chat</h4>
-                            <button id="btn-close-chat" class="close-btn">&times;</button>
-                        </div>
-                        <div id="game-chat-messages" class="chat-messages"></div>
-                        <div class="chat-input-area">
-                            <input type="text" id="game-chat-input" placeholder="Type a message...">
-                            <button id="btn-send-game-chat" class="btn-send">Send</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 4. Game Over / Standing Screen -->
-            <section id="game-over-screen" class="screen hidden">
-                <div class="glass-panel ranking-panel">
-                    <h2>🏆 Match Standings 🏆</h2>
-                    <div id="standings-list" class="standings-list"></div>
-                    <button id="btn-return-lobby" class="btn secondary" style="margin-top: 20px;">Return to Lobby</button>
-                </div>
-            </section>
-            
+    <!-- GAME OVER / STANDINGS SCREEN -->
+    <div id="game-over-screen" class="hidden screen-container">
+        <div class="panel text-center">
+            <h1>🏆 MATCH STANDINGS</h1>
+            <p>The battle has ended! Here is the rank list:</p>
+            <div id="standings-list" class="standings-container"></div>
+            <button id="btn-return-lobby" class="btn btn-primary" style="margin-top:25px;">🔄 Return to Lobby</button>
         </div>
     </div>
 
