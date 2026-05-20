@@ -20,7 +20,7 @@ let myPlayerId = null;
 let myName = "";
 let isCreator = false;
 let gameState = null;
-let lastActionId = ""; // 🌟 Bug Fix: Action ID tracking for precise animations
+let lastActionId = ""; // Action ID tracking for bug-free precise animations
 let roomListenerUnsubscribe = null;
 let totalMessagesSeen = 0;
 let hasTurnNotified = false; // Prevents turn overlay from looping continuously
@@ -150,7 +150,7 @@ function listenToRoomChanges() {
             
             if (!gameScreen.classList.contains('hidden')) {
                 const lastAction = gameState.lastAction;
-                // 🌟 Bug Fix: Using unique actionId instead of cardId to fix 'draw & play same card' animation bug
+                // Using unique actionId instead of cardId to fix 'draw & play same card' animation bug
                 if (lastAction && lastAction.actionId !== lastActionId) {
                     lastActionId = lastAction.actionId;
                     if (lastAction.playerId !== myPlayerId && lastAction.type === 'play') {
@@ -239,7 +239,6 @@ function startGame() {
 
     const mainCard = deck.pop();
     
-    // Create initial tracking actionId
     const initialActionId = 'start_' + Math.random().toString(36).substr(2, 9);
     lastActionId = initialActionId;
 
@@ -263,16 +262,11 @@ function renderGameBoard() {
         const activeName = gameState.players[activePlayerId]?.name || "Unknown";
         document.getElementById('active-player-name').innerText = (activePlayerId === myPlayerId) ? "YOUR TURN!" : `${activeName}'s Turn`;
 
-        // YOUR TURN FLASHY POPUP OVERLAY
         if (activePlayerId === myPlayerId) {
             if (!hasTurnNotified) {
                 const turnOverlay = document.getElementById('your-turn-overlay');
                 turnOverlay.classList.remove('hidden');
-                
-                setTimeout(() => {
-                    turnOverlay.classList.add('hidden');
-                }, 1500);
-                
+                setTimeout(() => { turnOverlay.classList.add('hidden'); }, 1500);
                 hasTurnNotified = true;
             }
         } else {
@@ -299,7 +293,6 @@ function renderGameBoard() {
     
     const isFinished = !turnOrder.includes(myPlayerId);
 
-    // 🌟 Bug Fix: Safe check for active players and scaled-down view for finished players
     if (!isFinished && gameState.players[myPlayerId]?.cards) {
         gameScreen.classList.remove('finished-view');
 
@@ -316,7 +309,6 @@ function renderGameBoard() {
             handContainer.appendChild(cardEl);
         });
     } else if (isFinished) {
-        // Automatically scales down the board via CSS and handles the finished layout
         gameScreen.classList.add('finished-view');
         chatBadge.classList.add('hidden');
     }
@@ -335,6 +327,7 @@ function createCardDOM(card) {
     return div;
 }
 
+// 🌟 FIX: Scaling and Translation Logic for large cards shrinking to board size
 function playMyCard(cardIndex, cardData, cardElement) {
     const rect = cardElement.getBoundingClientRect();
     const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
@@ -343,13 +336,13 @@ function playMyCard(cardIndex, cardData, cardElement) {
     flyingCard.classList.add('flying-card');
     flyingCard.style.left = `${rect.left}px`;
     flyingCard.style.top = `${rect.top}px`;
+    flyingCard.style.width = "100px"; // Start at Hand Size
+    flyingCard.style.height = "150px"; // Start at Hand Size
     document.getElementById('animation-layer').appendChild(flyingCard);
 
     setTimeout(() => {
-        flyingCard.classList.add('main-card-size');
-        flyingCard.style.left = `${mainPileRect.left}px`;
-        flyingCard.style.top = `${mainPileRect.top}px`;
-        flyingCard.style.transform = `rotate(${Math.random() * 20 - 10}deg)`;
+        flyingCard.classList.add('main-card-size'); 
+        flyingCard.style.transform = `translate(${mainPileRect.left - rect.left}px, ${mainPileRect.top - rect.top}px) rotate(${Math.random() * 20 - 10}deg)`;
     }, 20);
 
     setTimeout(() => {
@@ -358,14 +351,16 @@ function playMyCard(cardIndex, cardData, cardElement) {
     }, 550);
 }
 
+// 🌟 FIX: Specific board size override during flight
 function triggerOpponentPlayAnimation(cardData) {
     const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
     const flyingCard = createCardDOM(cardData);
     flyingCard.classList.add('flying-card');
-    flyingCard.classList.add('main-card-size');
     
     flyingCard.style.left = `50%`;
     flyingCard.style.top = `-250px`;
+    flyingCard.style.width = "90px"; // Board Size
+    flyingCard.style.height = "135px"; // Board Size
     document.getElementById('animation-layer').appendChild(flyingCard);
 
     setTimeout(() => {
@@ -500,7 +495,6 @@ function renderStandingsScreen() {
     });
 }
 
-// 🌟 FIX FOR "RETURN TO LOBBY" BUTTON
 function returnToLobbyIndividually() {
     if (roomListenerUnsubscribe) {
         roomListenerUnsubscribe(); 
