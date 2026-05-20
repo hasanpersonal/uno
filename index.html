@@ -7,10 +7,14 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 🔥 Flashy Turn Notification Overlay -->
+    <div id="your-turn-overlay" class="hidden">
+        <h1 class="bounce-in">YOUR TURN!</h1>
+    </div>
+
     <div id="app-container">
-        
-        <!-- Screens Area (Top/Main Part) -->
         <div id="screens-area">
+            
             <!-- 1. Entry / Login Screen -->
             <section id="entry-screen" class="screen active">
                 <div class="glass-panel">
@@ -44,22 +48,34 @@
                 </div>
             </section>
 
-            <!-- 2. Lobby Screen -->
+            <!-- 2. Lobby Screen (🌟 Chat ekhon Center-e) -->
             <section id="lobby-screen" class="screen hidden">
-                <div class="lobby-header">
-                    <h2>Game Lobby</h2>
-                    <div class="room-info">Room Code: <span id="display-room-code" class="highlight-text">---</span></div>
-                </div>
-                
-                <div class="lobby-content">
-                    <div class="lobby-box">
-                        <h3>Players</h3>
-                        <ul id="lobby-players" class="user-list"></ul>
+                <div class="glass-panel lobby-panel">
+                    <div class="lobby-header">
+                        <h2>Game Lobby</h2>
+                        <div class="room-info">Room Code: <span id="display-room-code" class="highlight-text">---</span></div>
                     </div>
-                </div>
+                    
+                    <div class="lobby-body">
+                        <div class="lobby-box">
+                            <h3>Players Connected</h3>
+                            <ul id="lobby-players" class="user-list"></ul>
+                        </div>
+                        
+                        <!-- Premium Lobby Chat Container -->
+                        <div class="lobby-chat-box">
+                            <h3>Room Chat</h3>
+                            <div id="lobby-chat-messages" class="chat-messages"></div>
+                            <div class="chat-input-area">
+                                <input type="text" id="lobby-chat-input" placeholder="Say hi...">
+                                <button id="btn-send-lobby-chat" class="btn-send">Send</button>
+                            </div>
+                        </div>
+                    </div>
 
-                <div class="lobby-footer">
-                    <button id="btn-start-game" class="btn primary hidden">Start Game</button>
+                    <div class="lobby-footer">
+                        <button id="btn-start-game" class="btn primary hidden">Start Game</button>
+                    </div>
                 </div>
             </section>
 
@@ -77,7 +93,6 @@
 
                 <!-- Main Board -->
                 <div class="game-board">
-                    <!-- Draw Card Pile (Top Right Positioned) -->
                     <div id="draw-pile" class="card-slot draw-deck">
                         <div class="uno-card">
                             <div class="card-inner">
@@ -86,7 +101,6 @@
                         </div>
                     </div>
 
-                    <!-- Main Card Pile (Center) -->
                     <div class="center-table">
                         <div id="main-pile" class="card-slot main-card"></div>
                     </div>
@@ -98,6 +112,24 @@
                 <div class="player-hand-area">
                     <div id="player-hand" class="cards-container"></div>
                 </div>
+
+                <!-- 🌟 Floating Premium Chat Widget 🌟 -->
+                <div id="floating-chat-widget">
+                    <button id="btn-toggle-chat" class="chat-toggle-btn">
+                        💬 <span id="chat-badge" class="badge hidden">New</span>
+                    </button>
+                    <div id="game-chat-panel" class="premium-chat-panel hidden">
+                        <div class="chat-header">
+                            <h4>Game Chat</h4>
+                            <button id="btn-close-chat" class="close-btn">&times;</button>
+                        </div>
+                        <div id="game-chat-messages" class="chat-messages"></div>
+                        <div class="chat-input-area">
+                            <input type="text" id="game-chat-input" placeholder="Type a message...">
+                            <button id="btn-send-game-chat" class="btn-send">Send</button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- 4. Game Over / Standing Screen -->
@@ -108,20 +140,8 @@
                     <button id="btn-return-lobby" class="btn secondary" style="margin-top: 20px;">Return to Lobby</button>
                 </div>
             </section>
+            
         </div>
-
-        <!-- 5. Fixed Dynamic Chatbox -->
-        <div id="chat-container" class="chat-box hidden">
-            <div class="chat-header">
-                <h4>Live Chat</h4>
-            </div>
-            <div id="chat-messages" class="chat-messages"></div>
-            <div class="chat-input-area">
-                <input type="text" id="chat-input" placeholder="Type a message...">
-                <button id="btn-send-chat" class="btn-send">Send</button>
-            </div>
-        </div>
-
     </div>
 
     <script type="module" src="script.js"></script>
