@@ -1,7 +1,7 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, push } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-// --- Firebase Configuration ---
+// Firebase Secure Realtime Infrastructure Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyCKqsxIC2aGBR0UnejiXlIaJeKAfdW_Zp0",
     authDomain: "online-ha.firebaseapp.com",
@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// --- Global States ---
+// Global Isolated Application States
 let roomId = null;
 let playerName = "";
 let playerId = "player_" + Math.random().toString(36).substr(2, 9);
@@ -24,8 +24,10 @@ let isHost = false;
 let myCards = [];
 let gameActive = false;
 let autoDrawProcessing = false;
+let activeListeners = []; 
+let chatTimeout = null; 
+let isProcessingAction = false; 
 
-// --- DOM Elements Mapping ---
 const screens = {
     join: document.getElementById("join-screen"),
     lobby: document.getElementById("lobby-screen"),
@@ -47,7 +49,7 @@ const mainDiscardCard = document.getElementById("main-discard-card");
 const btnDrawCard = document.getElementById("btn-draw-card");
 const playerCardsGrid = document.getElementById("player-cards-grid");
 const currentTurnDisplay = document.getElementById("current-turn-display");
-const drawCycleIndicator = document.getElementById("draw-cycle-indicator");
+const dynamicCycleList = document.getElementById("dynamic-cycle-list");
 const flashTurnAlert = document.getElementById("flash-turn-alert");
 const spectatorNotice = document.getElementById("spectator-notice");
 const gameChatPopup = document.getElementById("game-chat-popup");
@@ -56,18 +58,71 @@ const gameChatBox = document.getElementById("game-chat-box");
 const gameChatInput = document.getElementById("game-chat-input");
 
 function switchScreen(screenName) {
-    Object.values(screens).forEach(s => s.classList.remove("active"));
-    screens[screenName].classList.add("active");
-    screens[screenName].classList.remove("hidden");
+    Object.values(screens).forEach(s => {
+        if(s) {
+            s.classList.remove("active");
+            s.classList.add("hidden");
+        }
+    });
+    if(screens[screenName]) {
+        screens[screenName].classList.add("active");
+        screens[screenName].classList.remove("hidden");
+    }
 }
 
 function showError(msg) {
+    if(!errorMsg) return;
     errorMsg.innerText = msg;
     errorMsg.classList.remove("hidden");
     setTimeout(() => errorMsg.classList.add("hidden"), 3000);
 }
 
-// --- UNO Deck Factory ---
+function purgeActiveListeners() {
+    activeListeners.forEach(unsubscribe => { if(typeof unsubscribe === 'function') unsubscribe(); });
+    activeListeners = [];
+}
+
+function createCardDOM(card) {
+    const cardEl = document.createElement("div");
+    const isWild = card.value === "Wild" || card.value === "+4";
+    
+    if (isWild && card.color !== "Black") {
+        cardEl.className = `uno-card-element card-${card.color.toLowerCase()}`;
+    } else {
+        cardEl.className = `uno-card-element card-${isWild ? 'black' : card.color.toLowerCase()}`;
+    }
+    
+    if (isWild && card.color !== "Black") {
+        cardEl.style.borderColor = `var(--uno-${card.color.toLowerCase()})`;
+    }
+    
+    if (isWild && card.color === "Black") {
+        const quad = document.createElement("div");
+        quad.className = "wild-quadrant-bg";
+        quad.innerHTML = `<div class="q-red"></div><div class="q-blue"></div><div class="q-green"></div><div class="q-yellow"></div>`;
+        cardEl.appendChild(quad);
+    }
+
+    const valueStr = card.value;
+    const topLeft = document.createElement("span");
+    topLeft.className = "card-mini-symbol symbol-top-left";
+    topLeft.innerText = valueStr;
+    
+    const center = document.createElement("span");
+    center.className = "card-center-value";
+    center.innerText = valueStr;
+    
+    const bottomRight = document.createElement("span");
+    bottomRight.className = "card-mini-symbol symbol-bottom-right";
+    bottomRight.innerText = valueStr;
+    
+    cardEl.appendChild(topLeft);
+    cardEl.appendChild(center);
+    cardEl.appendChild(bottomRight);
+    
+    return cardEl;
+}
+
 const colors = ["Red", "Green", "Blue", "Yellow"];
 const values = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse", "+2"];
 
@@ -86,7 +141,6 @@ function generateDeck() {
     return deck.sort(() => Math.random() - 0.5);
 }
 
-// --- ROOM CONTROLS ---
 document.getElementById("btn-create-room").addEventListener("click", async () => {
     playerName = createName.value.trim();
     if (!playerName) return showError("Please enter your name");
@@ -94,76 +148,95 @@ document.getElementById("btn-create-room").addEventListener("click", async () =>
     roomId = Math.floor(1000 + Math.random() * 9000).toString();
     isHost = true;
     
-    await set(ref(db, `rooms/${roomId}`), {
-        host: playerId,
-        state: "lobby",
-        players: { [playerId]: { name: playerName, cards: [], status: "active", cardCount: 0 } },
-        game: { deck: [], discard: { value: "", color: "" }, turn: "", direction: 1 }
-    });
-    enterLobby();
+    try {
+        await set(ref(db, `rooms/${roomId}`), {
+            host: playerId,
+            state: "lobby",
+            players: { [playerId]: { name: playerName, status: "active", cardCount: 0 } },
+            game: { discard: { value: "", color: "" }, turn: "", direction: 1 }
+        });
+        enterLobby();
+    } catch (error) {
+        console.error(error);
+        showError("Portal initialization error!");
+    }
 });
 
 document.getElementById("btn-join-room").addEventListener("click", async () => {
     playerName = joinName.value.trim();
     roomId = joinCode.value.trim();
+    if (!playerName || !roomId) return showError("Enter credentials fully");
     
-    if (!playerName || !roomId) return showError("Enter name and room code");
-    
-    const snapshot = await get(ref(db, `rooms/${roomId}`));
-    if (snapshot.exists()) {
-        if(snapshot.val().state === "playing") return showError("Game already started");
-        await update(ref(db, `rooms/${roomId}/players/${playerId}`), {
-            name: playerName, cards: [], status: "active", cardCount: 0
-        });
-        enterLobby();
-    } else {
-        showError("Room Code does not exist!");
+    try {
+        const snapshot = await get(ref(db, `rooms/${roomId}`));
+        if (snapshot.exists()) {
+            if(snapshot.val().state === "playing") return showError("Arena operational inside!");
+            await update(ref(db, `rooms/${roomId}/players/${playerId}`), {
+                name: playerName, status: "active", cardCount: 0
+            });
+            enterLobby();
+        } else {
+            showError("Invalid Code Node!");
+        }
+    } catch(e) {
+        showError("Room Access Failure!");
     }
 });
 
 function enterLobby() {
+    purgeActiveListeners(); 
     switchScreen("lobby");
-    lobbyRoomId.innerText = roomId;
+    if(lobbyRoomId) lobbyRoomId.innerText = roomId;
     
-    if (isHost) {
+    if (isHost && btnStartGame && waitMessage) {
         btnStartGame.classList.remove("hidden");
         waitMessage.classList.add("hidden");
     }
     
-    onValue(ref(db, `rooms/${roomId}/players`), (snapshot) => {
-        if (!snapshot.exists()) return;
+    const unsubPlayers = onValue(ref(db, `rooms/${roomId}/players`), (snapshot) => {
+        if (!snapshot.exists() || !lobbyPlayerList) return;
         lobbyPlayerList.innerHTML = "";
         Object.values(snapshot.val()).forEach(p => {
             const li = document.createElement("li");
-            li.innerText = p.name;
+            li.innerText = `» ${p.name.toUpperCase()}`;
             lobbyPlayerList.appendChild(li);
         });
     });
+    activeListeners.push(unsubPlayers);
 
-    onValue(ref(db, `rooms/${roomId}/lobbyChat`), (snapshot) => {
-        if (!snapshot.exists()) return;
+    const unsubLobbyChat = onValue(ref(db, `rooms/${roomId}/lobbyChat`), (snapshot) => {
+        if (!snapshot.exists() || !lobbyChatBox) return;
         lobbyChatBox.innerHTML = "";
         Object.values(snapshot.val()).forEach(c => {
             lobbyChatBox.innerHTML += `<div><b>${c.sender}:</b> ${c.msg}</div>`;
         });
         lobbyChatBox.scrollTop = lobbyChatBox.scrollHeight;
     });
+    activeListeners.push(unsubLobbyChat);
 
-    onValue(ref(db, `rooms/${roomId}/state`), (snapshot) => {
-        if (snapshot.val() === "playing" && !gameActive) {
+    const unsubState = onValue(ref(db, `rooms/${roomId}/state`), async (snapshot) => {
+        const globalState = snapshot.val();
+        if (globalState === "playing" && !gameActive) {
             startGameUI();
+        } else if (globalState === "lobby" && gameActive) {
+            gameActive = false;
+            enterLobby();
+        } else if (globalState === "gameOver" && gameActive) {
+            const playersSnap = await get(ref(db, `rooms/${roomId}/players`));
+            if (playersSnap.exists()) endGame(playersSnap.val());
         }
     });
+    activeListeners.push(unsubState);
 }
 
 document.getElementById("btn-lobby-send").addEventListener("click", () => {
+    if(!lobbyChatInput) return;
     const msg = lobbyChatInput.value.trim();
     if (!msg) return;
     push(ref(db, `rooms/${roomId}/lobbyChat`), { sender: playerName, msg });
     lobbyChatInput.value = "";
 });
 
-// --- STATE INITIALIZATION (HOST) ---
 btnStartGame.addEventListener("click", async () => {
     const snapshot = await get(ref(db, `rooms/${roomId}/players`));
     const players = snapshot.val();
@@ -177,8 +250,8 @@ btnStartGame.addEventListener("click", async () => {
     }
 
     playerIds.forEach(id => {
-        players[id].cards = deck.splice(-14); 
-        players[id].cardCount = 14;
+        players[id].cards = deck.splice(-7);
+        players[id].cardCount = 7;
         players[id].status = "active";
     });
 
@@ -197,31 +270,41 @@ btnStartGame.addEventListener("click", async () => {
     });
 });
 
-// --- MAIN ENGINE UI ---
 function startGameUI() {
     gameActive = true;
     switchScreen("game");
     animateInitialDistribution();
 
-    onValue(ref(db, `rooms/${roomId}/game`), (snapshot) => {
+    const unsubGame = onValue(ref(db, `rooms/${roomId}/game`), async (snapshot) => {
         if (!snapshot.exists()) return;
-        updateGameScreen(snapshot.val());
+        const gameData = snapshot.val();
+        updateGameScreen(gameData);
+        
+        const playersSnap = await get(ref(db, `rooms/${roomId}/players`));
+        if (playersSnap.exists()) {
+            renderCycleTracker(gameData, playersSnap.val());
+        }
     });
+    activeListeners.push(unsubGame);
 
-    onValue(ref(db, `rooms/${roomId}/players/${playerId}`), (snapshot) => {
+    const unsubPlayersGame = onValue(ref(db, `rooms/${roomId}/players`), (snapshot) => {
         if (!snapshot.exists()) return;
-        const me = snapshot.val();
+        const allPlayers = snapshot.val();
+        const me = allPlayers[playerId];
+        if(!me) return;
+        
         myCards = me.cards || [];
         renderMyCards();
         
         if (myCards.length === 0 && me.cardCount === 0 && me.status === "active" && gameActive) {
-            spectatorNotice.classList.remove("hidden");
+            if(spectatorNotice) spectatorNotice.classList.remove("hidden");
             update(ref(db, `rooms/${roomId}/players/${playerId}`), { status: "spectator" });
         }
     });
+    activeListeners.push(unsubPlayersGame);
 
-    onValue(ref(db, `rooms/${roomId}/gameChat`), (snapshot) => {
-        if (!snapshot.exists()) return;
+    const unsubGameChat = onValue(ref(db, `rooms/${roomId}/gameChat`), (snapshot) => {
+        if (!snapshot.exists() || !gameChatBox) return;
         const chatList = Object.values(snapshot.val());
         const lastChat = chatList[chatList.length - 1];
         
@@ -231,44 +314,77 @@ function startGameUI() {
         });
         gameChatBox.scrollTop = gameChatBox.scrollHeight;
 
-        if(lastChat.sender !== playerName) {
+        if(lastChat.sender !== playerName && floatingChatOverlay) {
             floatingChatOverlay.innerText = `${lastChat.sender}: ${lastChat.msg}`;
             floatingChatOverlay.classList.remove("hidden");
-            setTimeout(() => floatingChatOverlay.classList.add("hidden"), 1000); 
+            if(chatTimeout) clearTimeout(chatTimeout);
+            chatTimeout = setTimeout(() => floatingChatOverlay.classList.add("hidden"), 1200); 
         }
     });
+    activeListeners.push(unsubGameChat);
 }
 
 function renderMyCards() {
+    if(!playerCardsGrid) return;
     playerCardsGrid.innerHTML = "";
     myCards.forEach((card, index) => {
-        const cardEl = document.createElement("div");
-        cardEl.className = "card";
-        cardEl.style.color = card.color !== "Black" ? card.color : "black";
-        cardEl.innerText = card.value;
-        cardEl.onclick = () => playCard(index, card);
-        playerCardsGrid.appendChild(cardEl);
+        const cardDOM = createCardDOM(card);
+        cardDOM.onclick = () => playCard(index, card);
+        playerCardsGrid.appendChild(cardDOM);
+    });
+}
+
+function renderCycleTracker(game, allPlayers) {
+    if(!dynamicCycleList) return;
+    dynamicCycleList.innerHTML = "";
+    const order = game.order || [];
+    const currentTurn = game.turn;
+    
+    order.forEach((pId, idx) => {
+        const playerData = allPlayers[pId];
+        if (!playerData || playerData.status === "spectator") return;
+
+        const node = document.createElement("div");
+        node.className = `cycle-node ${pId === currentTurn ? 'active-node' : ''}`;
+        node.innerText = `${playerData.name} (${playerData.cardCount})`;
+        
+        dynamicCycleList.appendChild(node);
+
+        if (idx < order.length - 1) {
+            const arrow = document.createElement("span");
+            arrow.className = "cycle-arrow";
+            arrow.innerText = game.direction === 1 ? "→" : "←";
+            dynamicCycleList.appendChild(arrow);
+        }
     });
 }
 
 function updateGameScreen(game) {
-    const topCard = game?.discard || { value: "", color: "" };
-    mainDiscardCard.innerText = topCard.value || "";
-    mainDiscardCard.style.color = topCard.color !== "Black" ? topCard.color : "#fff";
-    if(topCard.color === "Black") mainDiscardCard.style.backgroundColor = "#333";
-    else mainDiscardCard.style.backgroundColor = "#fff";
+    const topCard = game?.discard || { value: "", color: "Black" };
+    
+    if(mainDiscardCard) {
+        mainDiscardCard.innerHTML = "";
+        if (topCard.value) {
+            const cardDOM = createCardDOM(topCard);
+            mainDiscardCard.className = cardDOM.className;
+            mainDiscardCard.style.borderColor = cardDOM.style.borderColor;
+            mainDiscardCard.innerHTML = cardDOM.innerHTML;
+        }
+    }
 
     const isMyTurn = (game.turn === playerId);
-    drawCycleIndicator.innerText = `Direction: ${game.direction === 1 ? 'Clockwise ↻' : 'Counter ↺'}`;
-    
-    if (isMyTurn) {
-        currentTurnDisplay.innerText = "YOUR TURN!";
-        if(["play", "start", "draw"].includes(game.lastAction)) {
-            flashTurnAlert.classList.remove("hidden");
-            setTimeout(() => flashTurnAlert.classList.add("hidden"), 2000);
+    if(currentTurnDisplay) {
+        if (isMyTurn) {
+            currentTurnDisplay.innerText = "YOUR ACTION PHASE!";
+            currentTurnDisplay.style.color = "var(--neon-green)";
+            if(["play", "start", "draw"].includes(game.lastAction) && flashTurnAlert) {
+                flashTurnAlert.classList.remove("hidden");
+                setTimeout(() => { if(flashTurnAlert) flashTurnAlert.classList.add("hidden"); }, 1600);
+            }
+        } else {
+            currentTurnDisplay.innerText = "WAITING FOR CREW CODES...";
+            currentTurnDisplay.style.color = "#fff";
         }
-    } else {
-        currentTurnDisplay.innerText = "Opponent's Turn";
     }
 
     if (isMyTurn && game.pendingDraw > 0 && !autoDrawProcessing) {
@@ -278,18 +394,22 @@ function updateGameScreen(game) {
 }
 
 async function playCard(index, card) {
+    if (isProcessingAction) return; 
+    
     const gameSnapshot = await get(ref(db, `rooms/${roomId}/game`));
     const game = gameSnapshot.val();
 
-    if (game.turn !== playerId) return showError("Not your turn!");
+    if (game.turn !== playerId) return showError("Not your target turn phrase!");
     
     const topCard = game.discard;
     const isValid = card.color === "Black" || card.color === topCard.color || card.value === topCard.value;
-    if (!isValid) return showError("Invalid card compilation!");
+    if (!isValid) return showError("UNO Code Compilation Error: Card mismatch!");
+
+    isProcessingAction = true; 
 
     let targetCard = { ...card };
     if(card.color === "Black") {
-        let chosenColor = prompt("Choose a Color: Red, Green, Blue, Yellow");
+        let chosenColor = prompt("Matrix Choice: Red, Green, Blue, Yellow");
         if(chosenColor) {
             chosenColor = chosenColor.trim();
             chosenColor = chosenColor.charAt(0).toUpperCase() + chosenColor.slice(1).toLowerCase();
@@ -300,40 +420,61 @@ async function playCard(index, card) {
         targetCard.color = chosenColor; 
     }
 
-    if(playerCardsGrid.children[index]) {
+    if(playerCardsGrid && playerCardsGrid.children[index] && mainDiscardCard) {
         animateFlyingCard(playerCardsGrid.children[index].getBoundingClientRect(), mainDiscardCard.getBoundingClientRect(), card);
     }
 
-    myCards.splice(index, 1);
-    await update(ref(db, `rooms/${roomId}/players/${playerId}`), { cards: myCards, cardCount: myCards.length });
-
-    let nextTurnIndex = game.order.indexOf(playerId);
-    let pendingDraw = game.pendingDraw || 0;
+    const updatedLocalCards = [...myCards];
+    updatedLocalCards.splice(index, 1);
+    myCards = updatedLocalCards;
     
-    if (card.value === "Reverse") game.direction *= -1;
-    if (card.value === "+2") pendingDraw += 2;
-    if (card.value === "+4") pendingDraw += 4;
+    if (myCards.length === 0) {
+        const batchUpdates = {};
+        batchUpdates[`rooms/${roomId}/players/${playerId}/cards`] = myCards;
+        batchUpdates[`rooms/${roomId}/players/${playerId}/cardCount`] = 0;
+        batchUpdates[`rooms/${roomId}/game/discard`] = targetCard;
+        batchUpdates[`rooms/${roomId}/game/lastAction`] = "play";
+        batchUpdates[`rooms/${roomId}/state`] = "gameOver";
+        await update(ref(db), batchUpdates);
+        isProcessingAction = false;
+        return;
+    }
 
-    let turnStep = game.direction;
-    if (card.value === "Skip") turnStep *= 2; 
-
-    let nextTurn = "";
-    let loopCount = 0;
-    do {
-        nextTurnIndex = (nextTurnIndex + turnStep + game.order.length) % game.order.length;
-        nextTurn = game.order[nextTurnIndex];
-        turnStep = game.direction; 
-        loopCount++;
-        if(loopCount > game.order.length) break; 
-    } while ((await get(ref(db, `rooms/${roomId}/players/${nextTurn}/status`))).val() === "spectator");
+    await update(ref(db, `rooms/${roomId}/players/${playerId}`), { cards: myCards, cardCount: myCards.length });
 
     const allPlayersSnap = await get(ref(db, `rooms/${roomId}/players`));
     const allPlayers = allPlayersSnap.val();
-    const activePlayers = Object.values(allPlayers).filter(p => p.status === "active" || p.cards?.length > 0);
+
+    let currentIdx = game.order.indexOf(playerId);
+    let nextTurn = "";
     
-    if (myCards.length === 0 && activePlayers.length <= 1) {
-        endGame(allPlayers);
-        return;
+    if (card.value === "Reverse") game.direction *= -1;
+    let pendingDraw = game.pendingDraw || 0;
+    if (card.value === "+2") pendingDraw += 2;
+    if (card.value === "+4") pendingDraw += 4;
+
+    let activeCount = 0;
+    game.order.forEach(id => {
+        if (allPlayers[id] && allPlayers[id].status !== "spectator") activeCount++;
+    });
+
+    if (activeCount <= 2 && (card.value === "Skip" || card.value === "Reverse")) {
+        nextTurn = playerId;
+    } else {
+        let checkIdx = currentIdx;
+        let activePlayersFound = 0;
+        let targetActiveCount = (card.value === "Skip") ? 2 : 1; 
+        let safetyCounter = 0;
+
+        while (activePlayersFound < targetActiveCount && safetyCounter < game.order.length) {
+            checkIdx = (checkIdx + game.direction + game.order.length) % game.order.length;
+            if (allPlayers[game.order[checkIdx]] && allPlayers[game.order[checkIdx]].status !== "spectator") {
+                activePlayersFound++;
+                nextTurn = game.order[checkIdx];
+            }
+            safetyCounter++;
+        }
+        if(!nextTurn) nextTurn = playerId; 
     }
 
     await update(ref(db, `rooms/${roomId}/game`), {
@@ -343,27 +484,50 @@ async function playCard(index, card) {
         pendingDraw: pendingDraw,
         lastAction: "play"
     });
+    
+    isProcessingAction = false; 
 }
 
 btnDrawCard.addEventListener("click", async () => {
+    if (isProcessingAction) return; 
+
     const gameSnapshot = await get(ref(db, `rooms/${roomId}/game`));
     const game = gameSnapshot.val();
-    
-    if (game.turn !== playerId) return showError("Not your turn!");
+    if (game.turn !== playerId) return showError("Turn Blocked!");
 
-    animateFlyingCard(btnDrawCard.getBoundingClientRect(), playerCardsGrid.getBoundingClientRect(), {value: "❓", color: "Black"});
+    isProcessingAction = true; 
+    if(btnDrawCard && playerCardsGrid) {
+        animateFlyingCard(btnDrawCard.getBoundingClientRect(), playerCardsGrid.getBoundingClientRect(), {value: "🎲", color: "Black"});
+    }
 
     let deck = game.deck || [];
-    if (deck.length === 0) deck = generateDeck();
+    if (deck.length === 0) deck = generateDeck(); 
     
     const drawnCard = deck.pop();
-    myCards.push(drawnCard);
+    const updatedDrawCards = [...myCards, drawnCard];
+    myCards = updatedDrawCards;
 
     await update(ref(db, `rooms/${roomId}/players/${playerId}`), { cards: myCards, cardCount: myCards.length });
     
+    const allPlayersSnap = await get(ref(db, `rooms/${roomId}/players`));
+    const allPlayers = allPlayersSnap.val();
+
+    const topCard = game.discard;
+    const isPlayableImmediate = drawnCard.color === "Black" || drawnCard.color === topCard.color || drawnCard.value === topCard.value;
+    
+    if (isPlayableImmediate) {
+        await update(ref(db, `rooms/${roomId}/game`), { deck: deck, lastAction: "draw" });
+        showError("Drawn card is playable! Throw it or wait.");
+        isProcessingAction = false;
+        return; 
+    }
+
     let nextTurnIndex = (game.order.indexOf(playerId) + game.direction + game.order.length) % game.order.length;
-    while ((await get(ref(db, `rooms/${roomId}/players/${game.order[nextTurnIndex]}/status`))).val() === "spectator") {
+    let drawLoopCount = 0;
+    
+    while (allPlayers[game.order[nextTurnIndex]] && allPlayers[game.order[nextTurnIndex]].status === "spectator" && drawLoopCount < game.order.length) {
         nextTurnIndex = (nextTurnIndex + game.direction + game.order.length) % game.order.length;
+        drawLoopCount++;
     }
 
     await update(ref(db, `rooms/${roomId}/game`), {
@@ -371,6 +535,8 @@ btnDrawCard.addEventListener("click", async () => {
         turn: game.order[nextTurnIndex],
         lastAction: "draw"
     });
+    
+    isProcessingAction = false;
 });
 
 async function handleAutoDraw(amount, game) {
@@ -378,19 +544,28 @@ async function handleAutoDraw(amount, game) {
     if(deck.length < amount) deck = deck.concat(generateDeck());
     
     const drawnCards = deck.splice(-amount);
-    myCards.push(...drawnCards);
+    const updatedAutoCards = [...myCards, ...drawnCards];
+    myCards = updatedAutoCards;
 
-    const deckRect = btnDrawCard.getBoundingClientRect();
-    const handRect = playerCardsGrid.getBoundingClientRect();
-    for(let i=0; i<amount; i++) {
-        setTimeout(() => animateFlyingCard(deckRect, handRect, {value:"+", color:"Black"}), i*150);
+    if(btnDrawCard && playerCardsGrid) {
+        const deckRect = btnDrawCard.getBoundingClientRect();
+        const handRect = playerCardsGrid.getBoundingClientRect();
+        for(let i=0; i<amount; i++) {
+            setTimeout(() => animateFlyingCard(deckRect, handRect, {value:"+", color:"Black"}), i*120);
+        }
     }
 
     await update(ref(db, `rooms/${roomId}/players/${playerId}`), { cards: myCards, cardCount: myCards.length });
     
+    const allPlayersSnap = await get(ref(db, `rooms/${roomId}/players`));
+    const allPlayers = allPlayersSnap.val();
+
     let nextTurnIndex = (game.order.indexOf(playerId) + game.direction + game.order.length) % game.order.length;
-    while ((await get(ref(db, `rooms/${roomId}/players/${game.order[nextTurnIndex]}/status`))).val() === "spectator") {
+    let autoLoopCount = 0;
+    
+    while (allPlayers[game.order[nextTurnIndex]] && allPlayers[game.order[nextTurnIndex]].status === "spectator" && autoLoopCount < game.order.length) {
         nextTurnIndex = (nextTurnIndex + game.direction + game.order.length) % game.order.length;
+        autoLoopCount++;
     }
     
     await update(ref(db, `rooms/${roomId}/game`), {
@@ -402,56 +577,60 @@ async function handleAutoDraw(amount, game) {
     autoDrawProcessing = false;
 }
 
-// --- ANIMATION CORE SYSTEM ---
 function animateFlyingCard(startRect, endRect, cardData) {
     const animLayer = document.getElementById("animation-layer");
-    const flyingCard = document.createElement("div");
-    flyingCard.className = "card flying-card";
-    flyingCard.innerText = cardData.value;
-    flyingCard.style.color = cardData.color !== "Black" ? cardData.color : "black";
+    if(!animLayer) return;
+    const flyingCard = createCardDOM(cardData);
+    flyingCard.className += " flying-card";
     flyingCard.style.position = "fixed";
     flyingCard.style.left = startRect.left + "px";
     flyingCard.style.top = startRect.top + "px";
+    flyingCard.style.zIndex = "999999";
     
     animLayer.appendChild(flyingCard);
 
     requestAnimationFrame(() => {
         flyingCard.style.left = endRect.left + "px";
         flyingCard.style.top = endRect.top + "px";
-        flyingCard.style.transform = "scale(1.2) rotate(180deg)";
+        flyingCard.style.transform = "scale(1.1) rotate(360deg)";
     });
 
     setTimeout(() => {
         if (animLayer.contains(flyingCard)) animLayer.removeChild(flyingCard);
-    }, 600);
+    }, 550);
 }
 
 function animateInitialDistribution() {
     setTimeout(() => {
+        if(!btnDrawCard || !playerCardsGrid) return;
         const deckSlot = btnDrawCard.getBoundingClientRect();
         const handSlot = playerCardsGrid.getBoundingClientRect();
-        
-        const startX = deckSlot.left || (window.innerWidth / 2 + 50);
+        const startX = deckSlot.left || (window.innerWidth / 2);
         const startY = deckSlot.top || (window.innerHeight / 2);
-        const endX = handSlot.left || (window.innerWidth / 2 - 100);
-        const endY = handSlot.top || (window.innerHeight - 150);
+        const endX = handSlot.left || 40;
+        const endY = handSlot.top || (window.innerHeight - 120);
 
-        for(let i = 0; i < 14; i++) {
+        for(let i = 0; i < 7; i++) {
             setTimeout(() => {
-                animateFlyingCard(
-                    { left: startX, top: startY },
-                    { left: endX + (i * 5), top: endY },
-                    { value: "UNO", color: "Red" }
-                );
-            }, i * 100);
+                animateFlyingCard({ left: startX, top: startY }, { left: endX + (i * 12), top: endY }, { value: "UNO", color: "Black" });
+            }, i * 90);
         }
-    }, 600);
+    }, 400);
 }
 
-// --- GAME CHAT CONTROLS ---
-document.getElementById("btn-toggle-chat").addEventListener("click", () => gameChatPopup.classList.toggle("hidden"));
-document.getElementById("btn-close-chat").addEventListener("click", () => gameChatPopup.classList.add("hidden"));
+if(document.getElementById("btn-toggle-chat")) {
+    document.getElementById("btn-toggle-chat").addEventListener("click", () => {
+        if(gameChatPopup) gameChatPopup.classList.toggle("hidden");
+    });
+}
+if(document.getElementById("btn-close-chat")) {
+    document.getElementById("btn-close-chat").addEventListener("click", () => {
+        if(gameChatPopup) gameChatPopup.classList.add("hidden");
+    });
+}
+
 document.getElementById("btn-game-send").addEventListener("click", () => {
+    if(!gameChatInput) return;
     const msg = gameChatInput.value.trim();
     if (!msg) return;
     push(ref(db, `rooms/${roomId}/gameChat`), { sender: playerName, msg });
@@ -462,22 +641,35 @@ function endGame(players) {
     gameActive = false;
     switchScreen("gameOver");
     const standingsList = document.getElementById("standings-list");
+    if(!standingsList) return;
     standingsList.innerHTML = "";
     const sortedPlayers = Object.values(players).sort((a, b) => (a.cardCount || 0) - (b.cardCount || 0));
     sortedPlayers.forEach(p => {
         const li = document.createElement("li");
-        li.innerText = `${p.name} - ${p.cardCount === 0 ? "Winner!" : p.cardCount + " Cards Left"}`;
+        li.innerText = `${p.name.toUpperCase()} » ${p.cardCount === 0 ? "🏆 CHAMPION" : p.cardCount + " CARDS REMAINING"}`;
         standingsList.appendChild(li);
     });
 }
 
 document.getElementById("btn-back-to-lobby").addEventListener("click", async () => {
+    purgeActiveListeners(); 
     if (isHost) {
-        await update(ref(db, `rooms/${roomId}`), { state: "lobby" });
-        const snapshot = await get(ref(db, `rooms/${roomId}/players`));
-        const players = snapshot.val();
-        for(let id in players) {
-            await update(ref(db, `rooms/${roomId}/players/${id}`), { cards: [], status: "active", cardCount: 0 });
+        const lobbyResetBatch = {};
+        lobbyResetBatch[`rooms/${roomId}/state`] = "lobby";
+        
+        try {
+            const snapshot = await get(ref(db, `rooms/${roomId}/players`));
+            if (snapshot.exists()) {
+                const players = snapshot.val();
+                Object.keys(players).forEach(id => {
+                    lobbyResetBatch[`rooms/${roomId}/players/${id}/cards`] = [];
+                    lobbyResetBatch[`rooms/${roomId}/players/${id}/status`] = "active";
+                    lobbyResetBatch[`rooms/${roomId}/players/${id}/cardCount`] = 0;
+                });
+            }
+            await update(ref(db), lobbyResetBatch);
+        } catch(e) {
+            console.error("Lobby mutation error reset context:", e);
         }
     }
     enterLobby();
