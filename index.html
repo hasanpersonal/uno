@@ -62,7 +62,6 @@
                             <ul id="lobby-players" class="user-list"></ul>
                         </div>
                         
-                        <!-- Premium Lobby Chat Container -->
                         <div class="lobby-chat-box">
                             <h3>Room Chat</h3>
                             <div id="lobby-chat-messages" class="chat-messages"></div>
@@ -81,7 +80,6 @@
 
             <!-- 3. Game Screen -->
             <section id="game-screen" class="screen hidden">
-                <!-- Top Bar -->
                 <div class="game-header">
                     <div class="current-turn-display">
                         <h3>Turn: <span id="active-player-name" class="highlight-text">Waiting...</span></h3>
@@ -91,7 +89,6 @@
                     </div>
                 </div>
 
-                <!-- Main Board -->
                 <div class="game-board">
                     <div id="draw-pile" class="card-slot draw-deck">
                         <div class="uno-card">
@@ -108,12 +105,16 @@
                     <div id="animation-layer"></div>
                 </div>
 
-                <!-- Player Hand -->
+                <!-- Player Hand Area -->
                 <div class="player-hand-area">
+                    <!-- Action Buttons Container -->
+                    <div class="game-action-buttons">
+                        <button id="btn-call-uno" class="btn warning">📢 Say UNO!</button>
+                    </div>
                     <div id="player-hand" class="cards-container"></div>
                 </div>
 
-                <!-- 🌟 Floating Premium Chat Widget 🌟 -->
+                <!-- Floating Chat -->
                 <div id="floating-chat-widget">
                     <button id="btn-toggle-chat" class="chat-toggle-btn">
                         💬 <span id="chat-badge" class="badge hidden">New</span>
@@ -132,7 +133,7 @@
                 </div>
             </section>
 
-            <!-- 4. Game Over / Standing Screen -->
+            <!-- 4. Game Over Screen -->
             <section id="game-over-screen" class="screen hidden">
                 <div class="glass-panel ranking-panel">
                     <h2>🏆 Match Standings 🏆</h2>
