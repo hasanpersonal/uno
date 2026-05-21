@@ -2,31 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multiplayer UNO Arena</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNO NEO-ARENA</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="error-message" class="hidden"></div>
     <div id="animation-layer"></div>
-    <div id="flash-turn-alert" class="hidden">YOUR TURN!</div>
+    <div id="flash-turn-alert" class="hidden">YOUR TURN</div>
     <div id="floating-chat-overlay" class="hidden"></div>
 
     <!-- Join Screen -->
     <div id="join-screen" class="screen active">
-        <div class="panel">
-            <h1>UNO ARENA</h1>
+        <div class="panel login-panel">
+            <div class="logo-container">
+                <h1 class="neon-title">UNO</h1>
+                <span class="sub-title">NEO-ARENA</span>
+            </div>
             <div class="input-group">
-                <h3>Create New Room</h3>
-                <input type="text" id="create-name" placeholder="Enter Your Name">
-                <button id="btn-create-room">Create Room</button>
+                <h3>CREATE ARENA NODE</h3>
+                <input type="text" id="create-name" placeholder="Enter Operator Name">
+                <button id="btn-create-room" class="btn-glow-green">INITIALIZE ROOM</button>
             </div>
             <div class="divider">OR</div>
             <div class="input-group">
-                <h3>Join Existing Room</h3>
-                <input type="text" id="join-name" placeholder="Enter Your Name">
-                <input type="text" id="join-code" placeholder="Room Code">
-                <button id="btn-join-room">Join Room</button>
+                <h3>LINK EXISTING SECTOR</h3>
+                <input type="text" id="join-name" placeholder="Enter Operator Name">
+                <input type="text" id="join-code" placeholder="4-Digit Sector Code">
+                <button id="btn-join-room" class="btn-glow-blue">ESTABLISH LINK</button>
             </div>
         </div>
     </div>
@@ -34,23 +37,24 @@
     <!-- Lobby Screen -->
     <div id="lobby-screen" class="screen hidden">
         <div class="panel lobby-panel">
-            <h2>Room Code: <span id="lobby-room-id" class="highlight"></span></h2>
+            <h2 class="lobby-header">SECTOR NODE: <span id="lobby-room-id" class="highlight"></span></h2>
             <div class="lobby-grid">
                 <div class="players-section">
-                    <h3>Crew Members</h3>
+                    <h3>CONNECTED CREW</h3>
                     <ul id="lobby-player-list"></ul>
                 </div>
                 <div class="chat-section">
+                    <h3>COMMS CHANNEL</h3>
                     <div id="lobby-chat-box" class="chat-box"></div>
                     <div class="chat-input-row">
-                        <input type="text" id="lobby-chat-input" placeholder="Type a message...">
-                        <button id="btn-lobby-send">Send</button>
+                        <input type="text" id="lobby-chat-input" placeholder="Broadcast message...">
+                        <button id="btn-lobby-send">SEND</button>
                     </div>
                 </div>
             </div>
             <div class="lobby-actions">
-                <p id="wait-message">Waiting for host to start the game...</p>
-                <button id="btn-start-game" class="hidden start-btn">START GAME</button>
+                <p id="wait-message">Awaiting host clearance sequence...</p>
+                <button id="btn-start-game" class="hidden start-btn btn-glow-red">ENGAGE ARENA GAME</button>
             </div>
         </div>
     </div>
@@ -59,54 +63,56 @@
     <div id="game-screen" class="screen hidden">
         <div class="game-header">
             <div id="dynamic-cycle-list"></div>
-            <h2 id="current-turn-display">WAITING FOR CREW CODES...</h2>
-            <button id="btn-toggle-chat" class="chat-toggle-btn">💬 Chat</button>
+            <div class="turn-bar">
+                <h2 id="current-turn-display">SYNCHRONIZING TURNS...</h2>
+            </div>
+            <button id="btn-toggle-chat" class="chat-toggle-btn">💬 COMMS</button>
         </div>
 
-        <div id="spectator-notice" class="hidden spectator-banner">You are now a Spectator!</div>
+        <div id="spectator-notice" class="hidden spectator-banner">SPECTATOR MODE ACTIVE</div>
 
-        <div class="play-area">
+        <!-- Static Main Play Field Arena -->
+        <div class="play-field-arena">
             <div class="deck-container">
-                <div id="btn-draw-card" class="uno-deck">
-                    <span>UNO</span>
-                    <small>DRAW</small>
+                <div id="btn-draw-card" class="uno-deck-core">
+                    <div class="deck-inner-oval">UNO</div>
                 </div>
             </div>
             <div class="discard-container">
-                <div id="main-discard-card" class="uno-card-element"></div>
+                <div id="main-discard-card" class="uno-card-real-look"></div>
             </div>
         </div>
 
-        <div class="player-hand-container">
-            <h3>Your Cards</h3>
-            <div id="player-cards-grid"></div>
+        <!-- Scrollable Isolated Player Hand Fixed Dock Box -->
+        <div class="player-hand-dock">
+            <div class="dock-header">YOUR SYNCED HAND</div>
+            <div id="player-cards-grid" class="horizontal-scroll-grid"></div>
         </div>
 
         <!-- In-Game Chat Popup -->
         <div id="game-chat-popup" class="hidden">
             <div class="chat-header">
-                <span>Comms Link</span>
+                <span>COMMS SPLIT-LINK</span>
                 <button id="btn-close-chat">✕</button>
             </div>
             <div id="game-chat-box" class="chat-box"></div>
             <div class="chat-input-row">
-                <input type="text" id="game-chat-input" placeholder="Message...">
-                <button id="btn-game-send">Send</button>
+                <input type="text" id="game-chat-input" placeholder="Transmission...">
+                <button id="btn-game-send">TX</button>
             </div>
         </div>
     </div>
 
     <!-- Game Over Screen -->
     <div id="game-over-screen" class="screen hidden">
-        <div class="panel">
-            <h1>GAME OVER</h1>
-            <h3>Final Standings</h3>
+        <div class="panel summary-panel">
+            <h1 class="neon-title red-glow">NODE TERMINATED</h1>
+            <h3>STANDINGS TIMELINE</h3>
             <ul id="standings-list"></ul>
-            <button id="btn-back-to-lobby" class="start-btn">Return to Lobby</button>
+            <button id="btn-back-to-lobby" class="start-btn btn-glow-green">RETURN TO SECTOR LOBBY</button>
         </div>
     </div>
 
-    <!-- Firebase Script as Module -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
