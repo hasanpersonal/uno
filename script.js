@@ -1,6 +1,7 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, update, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, push } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-database.js";
 
+// --- Firebase Configuration ---
 const firebaseConfig = {
     apiKey: "AIzaSyCKqsxIC2aGBR0UnejiXlIaJeKAfdW_Zp0",
     authDomain: "online-ha.firebaseapp.com",
@@ -15,494 +16,469 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-let currentRoomCode = null;
-let myPlayerId = null;
-let myName = "";
-let isCreator = false;
-let gameState = null;
-let lastActionId = ""; 
-let roomListenerUnsubscribe = null;
-let totalMessagesSeen = 0;
-let hasTurnNotified = false; 
+// --- Global States ---
+let roomId = null;
+let playerName = "";
+let playerId = "player_" + Math.random().toString(36).substr(2, 9);
+let isHost = false;
+let myCards = [];
+let gameActive = false;
+let autoDrawProcessing = false;
 
-const entryScreen = document.getElementById('entry-screen');
-const lobbyScreen = document.getElementById('lobby-screen');
-const gameScreen = document.getElementById('game-screen');
-const gameOverScreen = document.getElementById('game-over-screen');
+// --- DOM Elements Mapping ---
+const screens = {
+    join: document.getElementById("join-screen"),
+    lobby: document.getElementById("lobby-screen"),
+    game: document.getElementById("game-screen"),
+    gameOver: document.getElementById("game-over-screen")
+};
 
-const gameChatPanel = document.getElementById('game-chat-panel');
-const chatBadge = document.getElementById('chat-badge');
+const createName = document.getElementById("create-name");
+const joinName = document.getElementById("join-name");
+const joinCode = document.getElementById("join-code");
+const errorMsg = document.getElementById("error-message");
+const lobbyRoomId = document.getElementById("lobby-room-id");
+const lobbyPlayerList = document.getElementById("lobby-player-list");
+const lobbyChatBox = document.getElementById("lobby-chat-box");
+const lobbyChatInput = document.getElementById("lobby-chat-input");
+const btnStartGame = document.getElementById("btn-start-game");
+const waitMessage = document.getElementById("wait-message");
+const mainDiscardCard = document.getElementById("main-discard-card");
+const btnDrawCard = document.getElementById("btn-draw-card");
+const playerCardsGrid = document.getElementById("player-cards-grid");
+const currentTurnDisplay = document.getElementById("current-turn-display");
+const drawCycleIndicator = document.getElementById("draw-cycle-indicator");
+const flashTurnAlert = document.getElementById("flash-turn-alert");
+const spectatorNotice = document.getElementById("spectator-notice");
+const gameChatPopup = document.getElementById("game-chat-popup");
+const floatingChatOverlay = document.getElementById("floating-chat-overlay");
+const gameChatBox = document.getElementById("game-chat-box");
+const gameChatInput = document.getElementById("game-chat-input");
 
-function enableFullscreen() {
-    const docEl = document.documentElement;
-    if (docEl.requestFullscreen) docEl.requestFullscreen();
-    else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+function switchScreen(screenName) {
+    Object.values(screens).forEach(s => s.classList.remove("active"));
+    screens[screenName].classList.add("active");
+    screens[screenName].classList.remove("hidden");
 }
 
-document.getElementById('btn-create-room').addEventListener('click', () => { enableFullscreen(); handleRoomAction('create'); });
-document.getElementById('btn-join-player').addEventListener('click', () => { enableFullscreen(); handleRoomAction('join'); });
-
-document.getElementById('btn-send-lobby-chat').addEventListener('click', () => sendChatMessage('lobby'));
-document.getElementById('btn-send-game-chat').addEventListener('click', () => sendChatMessage('game'));
-
-document.getElementById('btn-call-uno').addEventListener('click', () => {
-    push(ref(db, `rooms/${currentRoomCode}/chat`), { sender: 'System', text: `📢 ${myName} called UNO!` });
-});
-
-document.getElementById('btn-toggle-chat').addEventListener('click', () => {
-    gameChatPanel.classList.remove('hidden');
-    chatBadge.classList.add('hidden'); 
-});
-document.getElementById('btn-close-chat').addEventListener('click', () => {
-    gameChatPanel.classList.add('hidden');
-});
-
-document.getElementById('btn-start-game').addEventListener('click', startGame);
-document.getElementById('draw-pile').addEventListener('click', drawCardFromDeck);
-document.getElementById('btn-return-lobby').addEventListener('click', returnToLobbyIndividually);
-
-function handleRoomAction(action) {
-    const createName = document.getElementById('create-player-name').value.trim();
-    const joinName = document.getElementById('join-player-name').value.trim();
-    const inputCode = document.getElementById('room-code').value.trim();
-
-    if (action === 'create') {
-        if (!createName) return alert("Please enter your name!");
-        myName = createName;
-        currentRoomCode = Math.floor(1000 + Math.random() * 9000).toString();
-        isCreator = true;
-        setupRoomInFirebase();
-    } else {
-        if (!joinName) return alert("Please enter your name!");
-        if (!inputCode) return alert("Please enter room code!");
-        myName = joinName;
-        currentRoomCode = inputCode;
-        isCreator = false;
-        joinRoomInFirebase();
-    }
+function showError(msg) {
+    errorMsg.innerText = msg;
+    errorMsg.classList.remove("hidden");
+    setTimeout(() => errorMsg.classList.add("hidden"), 3000);
 }
 
-function setupRoomInFirebase() {
-    myPlayerId = 'user_' + Math.random().toString(36).substr(2, 9);
-    const roomRef = ref(db, `rooms/${currentRoomCode}`);
-    const initialData = {
-        creator: myPlayerId, status: "lobby", currentTurn: 0, direction: 1,
-        lastAction: { type: 'init', actionId: 'init_id' }, players: {}, standings: [], discardPile: []
-    };
-    initialData.players[myPlayerId] = { name: myName, id: myPlayerId };
+// --- UNO Deck Factory ---
+const colors = ["Red", "Green", "Blue", "Yellow"];
+const values = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse", "+2"];
 
-    set(roomRef, initialData).then(() => {
-        onDisconnect(ref(db, `rooms/${currentRoomCode}/players/${myPlayerId}`)).remove(); // Disconnect Auto-remove
-        switchToScreen('lobby');
-        listenToRoomChanges();
-    });
-}
-
-function joinRoomInFirebase() {
-    myPlayerId = 'user_' + Math.random().toString(36).substr(2, 9);
-    const userRef = ref(db, `rooms/${currentRoomCode}/players/${myPlayerId}`);
-    set(userRef, { name: myName, id: myPlayerId }).then(() => {
-        onDisconnect(userRef).remove(); // Disconnect Auto-remove
-        switchToScreen('lobby');
-        listenToRoomChanges();
-    }).catch(() => alert("Room not found!"));
-}
-
-function switchToScreen(screenType) {
-    entryScreen.classList.add('hidden'); lobbyScreen.classList.add('hidden');
-    gameScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden');
-    if (screenType === 'lobby') { lobbyScreen.classList.remove('hidden'); document.getElementById('display-room-code').innerText = currentRoomCode; }
-    else if (screenType === 'game') gameScreen.classList.remove('hidden');
-    else if (screenType === 'gameover') gameOverScreen.classList.remove('hidden');
-}
-
-function listenToRoomChanges() {
-    const roomRef = ref(db, `rooms/${currentRoomCode}`);
-    roomListenerUnsubscribe = onValue(roomRef, (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
-        gameState = data;
-
-        if (gameState.creator === myPlayerId) {
-            isCreator = true;
-            if (gameState.status === 'lobby') document.getElementById('btn-start-game').classList.remove('hidden');
-            
-            // Auto Skip if player disconnects mid-game
-            if (gameState.status === 'playing' && gameState.turnOrder) {
-                let activeId = gameState.turnOrder[gameState.currentTurn];
-                if (!gameState.players || !gameState.players[activeId]) {
-                    let newTurnOrder = gameState.turnOrder.filter(id => gameState.players && gameState.players[id]);
-                    if (newTurnOrder.length >= 2) {
-                        update(ref(db, `rooms/${currentRoomCode}`), { turnOrder: newTurnOrder, currentTurn: gameState.currentTurn % newTurnOrder.length });
-                    }
-                }
-            }
-        }
-
-        updateLobbyLists(data.players);
-        updateChatMessages(data.chat);
-
-        if (gameState.status === 'playing') {
-            if (gameScreen.classList.contains('hidden') && gameOverScreen.classList.contains('hidden')) switchToScreen('game');
-            if (!gameScreen.classList.contains('hidden')) {
-                const lastAction = gameState.lastAction;
-                if (lastAction && lastAction.actionId !== lastActionId) {
-                    lastActionId = lastAction.actionId;
-                    if (lastAction.playerId !== myPlayerId && lastAction.type === 'play') triggerOpponentPlayAnimation(lastAction.card);
-                    else if (lastAction.playerId !== myPlayerId && lastAction.type === 'draw') triggerOpponentDrawAnimation();
-                    else renderGameBoard();
-                } else renderGameBoard();
-            }
-        } else if (gameState.status === 'lobby' && (!gameScreen.classList.contains('hidden') || !gameOverScreen.classList.contains('hidden'))) {
-            switchToScreen('lobby');
-        }
-        if (gameState.status === 'ended') renderStandingsScreen();
-    });
-}
-
-function updateLobbyLists(players) {
-    const pList = document.getElementById('lobby-players');
-    pList.innerHTML = "";
-    if (players) Object.values(players).forEach(p => pList.innerHTML += `<li>🎮 ${p.name}</li>`);
-}
-
-function sendChatMessage(type) {
-    const input = document.getElementById(type === 'lobby' ? 'lobby-chat-input' : 'game-chat-input');
-    const msg = input.value.trim();
-    if (!msg) return;
-    push(ref(db, `rooms/${currentRoomCode}/chat`), { sender: myName, text: msg });
-    input.value = "";
-}
-
-function updateChatMessages(chatData) {
-    const lobbyContainer = document.getElementById('lobby-chat-messages');
-    const gameContainer = document.getElementById('game-chat-messages');
-    lobbyContainer.innerHTML = ""; gameContainer.innerHTML = "";
-    if (!chatData) return;
-    const messages = Object.values(chatData);
-    messages.forEach(m => {
-        const template = `<div class="chat-message"><strong>${m.sender}:</strong> ${m.text}</div>`;
-        lobbyContainer.innerHTML += template; gameContainer.innerHTML += template;
-    });
-    lobbyContainer.scrollTop = lobbyContainer.scrollHeight; gameContainer.scrollTop = gameContainer.scrollHeight;
-    if (messages.length > totalMessagesSeen) {
-        if (gameState && gameState.status === 'playing' && gameChatPanel.classList.contains('hidden')) chatBadge.classList.remove('hidden'); 
-        totalMessagesSeen = messages.length;
-    }
-}
-
-function startGame() {
-    if (!isCreator) return;
-    const colors = ['red', 'blue', 'green', 'yellow'];
+function generateDeck() {
     let deck = [];
-    
-    // Add Numbers & Actions
     colors.forEach(color => {
-        deck.push({ color, value: '0', id: Math.random().toString(36).substr(2, 5) });
-        for (let i = 1; i <= 9; i++) {
-            deck.push({ color, value: i.toString(), id: Math.random().toString(36).substr(2, 5) });
-            deck.push({ color, value: i.toString(), id: Math.random().toString(36).substr(2, 5) });
-        }
-        ['Skip', 'Rev', '+2'].forEach(action => {
-            deck.push({ color, value: action, id: Math.random().toString(36).substr(2, 5) });
-            deck.push({ color, value: action, id: Math.random().toString(36).substr(2, 5) });
+        values.forEach(value => {
+            deck.push({ color, value, type: "normal" });
+            if (value !== "0") deck.push({ color, value, type: "normal" });
         });
     });
-    
-    // Add Wilds
-    for(let i=0; i<4; i++){
-        deck.push({ color: 'black', value: 'Wild', id: Math.random().toString(36).substr(2, 5) });
-        deck.push({ color: 'black', value: '+4', id: Math.random().toString(36).substr(2, 5) });
+    for (let i = 0; i < 4; i++) {
+        deck.push({ color: "Black", value: "Wild", type: "wild" });
+        deck.push({ color: "Black", value: "+4", type: "wild" });
     }
-    deck.sort(() => Math.random() - 0.5);
-
-    const playerIds = Object.keys(gameState.players);
-    if(playerIds.length < 2) return alert("Need at least 2 players to start!");
-
-    const updatedPlayers = { ...gameState.players };
-    playerIds.forEach(id => updatedPlayers[id].cards = deck.splice(0, 7));
-
-    let mainCard = deck.pop();
-    while(mainCard.color === 'black') { deck.unshift(mainCard); mainCard = deck.pop(); } // First card shouldn't be wild
-
-    const initialActionId = 'start_' + Math.random().toString(36).substr(2, 9);
-    lastActionId = initialActionId;
-
-    update(ref(db, `rooms/${currentRoomCode}`), {
-        status: "playing", deck: deck, discardPile: [], mainCard: mainCard,
-        players: updatedPlayers, turnOrder: playerIds, currentTurn: 0, direction: 1, standings: [], 
-        lastAction: { type: 'init', playerId: '', cardId: mainCard.id, actionId: initialActionId }
-    });
+    return deck.sort(() => Math.random() - 0.5);
 }
 
-function renderGameBoard() {
-    const turnOrder = gameState.turnOrder || [];
-    const activePlayerId = turnOrder[gameState.currentTurn];
+// --- ROOM CONTROLS ---
+document.getElementById("btn-create-room").addEventListener("click", async () => {
+    playerName = createName.value.trim();
+    if (!playerName) return showError("Please enter your name");
     
-    if (activePlayerId) {
-        const activeName = gameState.players[activePlayerId]?.name || "Unknown";
-        document.getElementById('active-player-name').innerText = (activePlayerId === myPlayerId) ? "YOUR TURN!" : `${activeName}'s Turn`;
-        if (activePlayerId === myPlayerId) {
-            if (!hasTurnNotified) {
-                const turnOverlay = document.getElementById('your-turn-overlay');
-                turnOverlay.classList.remove('hidden');
-                setTimeout(() => turnOverlay.classList.add('hidden'), 1500);
-                hasTurnNotified = true;
-            }
-        } else hasTurnNotified = false; 
-    }
-
-    const orderContainer = document.getElementById('player-turn-order');
-    orderContainer.innerHTML = "";
-    turnOrder.forEach(id => {
-        const p = gameState.players[id];
-        if (p) {
-            const activeStyle = (id === activePlayerId) ? "style='border:2px solid #f1c40f; background:#e74c3c; font-weight:bold;'" : "";
-            orderContainer.innerHTML += `<span ${activeStyle}>${p.name} (${p.cards ? p.cards.length : 0})</span>`;
-        }
+    roomId = Math.floor(1000 + Math.random() * 9000).toString();
+    isHost = true;
+    
+    await set(ref(db, `rooms/${roomId}`), {
+        host: playerId,
+        state: "lobby",
+        players: { [playerId]: { name: playerName, cards: [], status: "active", cardCount: 0 } },
+        game: { deck: [], discard: { value: "", color: "" }, turn: "", direction: 1 }
     });
+    enterLobby();
+});
 
-    const mainPile = document.getElementById('main-pile');
-    mainPile.innerHTML = "";
-    if (gameState.mainCard) mainPile.appendChild(createCardDOM(gameState.mainCard));
-
-    const handContainer = document.getElementById('player-hand');
-    handContainer.innerHTML = "";
-    const isFinished = !turnOrder.includes(myPlayerId);
-
-    if (!isFinished && gameState.players[myPlayerId]?.cards) {
-        gameScreen.classList.remove('finished-view');
-        gameState.players[myPlayerId].cards.forEach((card, index) => {
-            const cardEl = createCardDOM(card);
-            cardEl.addEventListener('click', (e) => {
-                if (activePlayerId !== myPlayerId) return alert("Not your turn!");
-                // 🌟 UNO Match Rules Updated
-                if (card.color === 'black' || card.color === gameState.mainCard.color || card.value === gameState.mainCard.value) {
-                    playMyCard(index, card, e.target.closest('.uno-card'));
-                } else alert("Card doesn't match!");
-            });
-            handContainer.appendChild(cardEl);
+document.getElementById("btn-join-room").addEventListener("click", async () => {
+    playerName = joinName.value.trim();
+    roomId = joinCode.value.trim();
+    
+    if (!playerName || !roomId) return showError("Enter name and room code");
+    
+    const snapshot = await get(ref(db, `rooms/${roomId}`));
+    if (snapshot.exists()) {
+        if(snapshot.val().state === "playing") return showError("Game already started");
+        await update(ref(db, `rooms/${roomId}/players/${playerId}`), {
+            name: playerName, cards: [], status: "active", cardCount: 0
         });
-    } else if (isFinished) {
-        gameScreen.classList.add('finished-view');
-        chatBadge.classList.add('hidden');
+        enterLobby();
+    } else {
+        showError("Room Code does not exist!");
     }
-}
+});
 
-function createCardDOM(card) {
-    const div = document.createElement('div');
-    div.className = `uno-card color-${card.color}`;
-    let displayValue = card.value;
-    let textClass = displayValue.length > 1 ? "action-text" : ""; // Resize text for Skip, Rev, +2
+function enterLobby() {
+    switchScreen("lobby");
+    lobbyRoomId.innerText = roomId;
     
-    div.innerHTML = `
-        <div class="card-inner">
-            <div class="card-corner corner-top-left ${textClass}">${displayValue}</div>
-            <div class="card-value ${textClass}">${displayValue}</div>
-            <div class="card-corner corner-bottom-right ${textClass}">${displayValue}</div>
-        </div>
-    `;
-    return div;
-}
-
-function playMyCard(cardIndex, cardData, cardElement) {
-    const rect = cardElement.getBoundingClientRect();
-    const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
-    const flyingCard = createCardDOM(cardData);
-    flyingCard.classList.add('flying-card');
-    flyingCard.style.left = `${rect.left}px`; flyingCard.style.top = `${rect.top}px`;
-    document.getElementById('animation-layer').appendChild(flyingCard);
-
-    setTimeout(() => {
-        flyingCard.classList.add('main-card-size');
-        flyingCard.style.left = `${mainPileRect.left}px`; flyingCard.style.top = `${mainPileRect.top}px`;
-        flyingCard.style.transform = `rotate(${Math.random() * 20 - 10}deg)`;
-    }, 20);
-
-    setTimeout(() => {
-        flyingCard.remove();
-        submitCardToFirebase(cardIndex, cardData);
-    }, 550);
-}
-
-function triggerOpponentPlayAnimation(cardData) {
-    const mainPileRect = document.getElementById('main-pile').getBoundingClientRect();
-    const flyingCard = createCardDOM(cardData);
-    flyingCard.classList.add('flying-card', 'main-card-size');
-    flyingCard.style.left = `50%`; flyingCard.style.top = `-250px`;
-    document.getElementById('animation-layer').appendChild(flyingCard);
-    setTimeout(() => {
-        flyingCard.style.left = `${mainPileRect.left}px`; flyingCard.style.top = `${mainPileRect.top}px`;
-        flyingCard.style.transform = `rotate(${Math.random() * 20 - 10}deg)`;
-    }, 20);
-    setTimeout(() => { flyingCard.remove(); renderGameBoard(); }, 550);
-}
-
-function triggerOpponentDrawAnimation() {
-    const drawPileRect = document.getElementById('draw-pile').getBoundingClientRect();
-    const flyingCard = document.createElement('div');
-    flyingCard.className = "uno-card flying-card";
-    flyingCard.innerHTML = `<div class="card-inner" style="background:#2c3e50;"></div>`;
-    flyingCard.style.left = `${drawPileRect.left}px`; flyingCard.style.top = `${drawPileRect.top}px`;
-    document.getElementById('animation-layer').appendChild(flyingCard);
-    setTimeout(() => { flyingCard.style.left = `50%`; flyingCard.style.top = `-150px`; flyingCard.style.opacity = '0'; }, 20);
-    setTimeout(() => { flyingCard.remove(); renderGameBoard(); }, 550);
-}
-
-function submitCardToFirebase(cardIndex, cardData) {
-    let myCards = [...gameState.players[myPlayerId].cards];
-    myCards.splice(cardIndex, 1);
-
-    const updates = {};
-    let turnOrder = [...gameState.turnOrder];
-    let currentTurn = gameState.currentTurn;
-    let direction = gameState.direction || 1;
-    let discard = gameState.discardPile ? [...gameState.discardPile] : [];
-    let currentDeck = gameState.deck ? [...gameState.deck] : [];
-    
-    if(gameState.mainCard) discard.push(gameState.mainCard); // Push old card to discard
-    
-    // 🔥 Rules Action Logic 🔥
-    let step = 1;
-    let cardsToDraw = 0;
-    
-    if (cardData.color === 'black') {
-        let chosen = prompt("Choose color for Wild card (red, blue, green, yellow):");
-        if (!['red', 'blue', 'green', 'yellow'].includes(chosen)) chosen = 'red'; // Default safe color
-        cardData.color = chosen.toLowerCase(); 
-        if(cardData.value === '+4') cardsToDraw = 4;
-    } else if (cardData.value === 'Skip') {
-        step = 2;
-    } else if (cardData.value === 'Rev') {
-        if(turnOrder.length === 2) step = 2; else direction *= -1;
-    } else if (cardData.value === '+2') {
-        cardsToDraw = 2; step = 2;
+    if (isHost) {
+        btnStartGame.classList.remove("hidden");
+        waitMessage.classList.add("hidden");
     }
+    
+    onValue(ref(db, `rooms/${roomId}/players`), (snapshot) => {
+        if (!snapshot.exists()) return;
+        lobbyPlayerList.innerHTML = "";
+        Object.values(snapshot.val()).forEach(p => {
+            const li = document.createElement("li");
+            li.innerText = p.name;
+            lobbyPlayerList.appendChild(li);
+        });
+    });
 
-    // Force Draw logic for victims
-    if(cardsToDraw > 0) {
-        let victimTurn = (currentTurn + direction) % turnOrder.length;
-        if(victimTurn < 0) victimTurn += turnOrder.length;
-        let victimId = turnOrder[victimTurn];
-        let victimHand = gameState.players[victimId].cards ? [...gameState.players[victimId].cards] : [];
-        
-        for(let i=0; i<cardsToDraw; i++){
-            if(currentDeck.length === 0 && discard.length > 0) {
-                currentDeck = discard.sort(() => Math.random() - 0.5); discard = [];
-            }
-            if(currentDeck.length > 0) victimHand.push(currentDeck.pop());
+    onValue(ref(db, `rooms/${roomId}/lobbyChat`), (snapshot) => {
+        if (!snapshot.exists()) return;
+        lobbyChatBox.innerHTML = "";
+        Object.values(snapshot.val()).forEach(c => {
+            lobbyChatBox.innerHTML += `<div><b>${c.sender}:</b> ${c.msg}</div>`;
+        });
+        lobbyChatBox.scrollTop = lobbyChatBox.scrollHeight;
+    });
+
+    onValue(ref(db, `rooms/${roomId}/state`), (snapshot) => {
+        if (snapshot.val() === "playing" && !gameActive) {
+            startGameUI();
         }
-        updates[`rooms/${currentRoomCode}/players/${victimId}/cards`] = victimHand;
+    });
+}
+
+document.getElementById("btn-lobby-send").addEventListener("click", () => {
+    const msg = lobbyChatInput.value.trim();
+    if (!msg) return;
+    push(ref(db, `rooms/${roomId}/lobbyChat`), { sender: playerName, msg });
+    lobbyChatInput.value = "";
+});
+
+// --- STATE INITIALIZATION (HOST) ---
+btnStartGame.addEventListener("click", async () => {
+    const snapshot = await get(ref(db, `rooms/${roomId}/players`));
+    const players = snapshot.val();
+    const playerIds = Object.keys(players);
+    
+    let deck = generateDeck();
+    let initialDiscard = deck.pop();
+    while(initialDiscard.type === "wild" || ["Skip", "Reverse", "+2"].includes(initialDiscard.value)) {
+        deck.unshift(initialDiscard);
+        initialDiscard = deck.pop();
     }
 
-    let currentStandings = gameState.standings ? [...gameState.standings] : [];
-    if (myCards.length === 0) {
-        currentStandings.push(myName);
-        updates[`rooms/${currentRoomCode}/standings`] = currentStandings;
-        turnOrder = turnOrder.filter(id => id !== myPlayerId);
-        updates[`rooms/${currentRoomCode}/turnOrder`] = turnOrder;
+    playerIds.forEach(id => {
+        players[id].cards = deck.splice(-14); 
+        players[id].cardCount = 14;
+        players[id].status = "active";
+    });
+
+    await update(ref(db, `rooms/${roomId}`), {
+        state: "playing",
+        players: players,
+        game: {
+            deck: deck,
+            discard: initialDiscard,
+            turn: playerIds[0],
+            direction: 1,
+            order: playerIds,
+            pendingDraw: 0,
+            lastAction: "start"
+        }
+    });
+});
+
+// --- MAIN ENGINE UI ---
+function startGameUI() {
+    gameActive = true;
+    switchScreen("game");
+    animateInitialDistribution();
+
+    onValue(ref(db, `rooms/${roomId}/game`), (snapshot) => {
+        if (!snapshot.exists()) return;
+        updateGameScreen(snapshot.val());
+    });
+
+    onValue(ref(db, `rooms/${roomId}/players/${playerId}`), (snapshot) => {
+        if (!snapshot.exists()) return;
+        const me = snapshot.val();
+        myCards = me.cards || [];
+        renderMyCards();
         
-        if (turnOrder.length === 1) {
-            currentStandings.push(gameState.players[turnOrder[0]].name);
-            updates[`rooms/${currentRoomCode}/standings`] = currentStandings;
-            updates[`rooms/${currentRoomCode}/status`] = "ended"; 
-        } else {
-            if (currentTurn >= turnOrder.length) currentTurn = 0;
+        if (myCards.length === 0 && me.cardCount === 0 && me.status === "active" && gameActive) {
+            spectatorNotice.classList.remove("hidden");
+            update(ref(db, `rooms/${roomId}/players/${playerId}`), { status: "spectator" });
+        }
+    });
+
+    onValue(ref(db, `rooms/${roomId}/gameChat`), (snapshot) => {
+        if (!snapshot.exists()) return;
+        const chatList = Object.values(snapshot.val());
+        const lastChat = chatList[chatList.length - 1];
+        
+        gameChatBox.innerHTML = "";
+        chatList.forEach(c => {
+            gameChatBox.innerHTML += `<div><b>${c.sender}:</b> ${c.msg}</div>`;
+        });
+        gameChatBox.scrollTop = gameChatBox.scrollHeight;
+
+        if(lastChat.sender !== playerName) {
+            floatingChatOverlay.innerText = `${lastChat.sender}: ${lastChat.msg}`;
+            floatingChatOverlay.classList.remove("hidden");
+            setTimeout(() => floatingChatOverlay.classList.add("hidden"), 1000); 
+        }
+    });
+}
+
+function renderMyCards() {
+    playerCardsGrid.innerHTML = "";
+    myCards.forEach((card, index) => {
+        const cardEl = document.createElement("div");
+        cardEl.className = "card";
+        cardEl.style.color = card.color !== "Black" ? card.color : "black";
+        cardEl.innerText = card.value;
+        cardEl.onclick = () => playCard(index, card);
+        playerCardsGrid.appendChild(cardEl);
+    });
+}
+
+function updateGameScreen(game) {
+    const topCard = game?.discard || { value: "", color: "" };
+    mainDiscardCard.innerText = topCard.value || "";
+    mainDiscardCard.style.color = topCard.color !== "Black" ? topCard.color : "#fff";
+    if(topCard.color === "Black") mainDiscardCard.style.backgroundColor = "#333";
+    else mainDiscardCard.style.backgroundColor = "#fff";
+
+    const isMyTurn = (game.turn === playerId);
+    drawCycleIndicator.innerText = `Direction: ${game.direction === 1 ? 'Clockwise ↻' : 'Counter ↺'}`;
+    
+    if (isMyTurn) {
+        currentTurnDisplay.innerText = "YOUR TURN!";
+        if(["play", "start", "draw"].includes(game.lastAction)) {
+            flashTurnAlert.classList.remove("hidden");
+            setTimeout(() => flashTurnAlert.classList.add("hidden"), 2000);
         }
     } else {
-        updates[`rooms/${currentRoomCode}/players/${myPlayerId}/cards`] = myCards;
-        currentTurn = (currentTurn + (step * direction)) % turnOrder.length;
-        if(currentTurn < 0) currentTurn += turnOrder.length;
+        currentTurnDisplay.innerText = "Opponent's Turn";
     }
 
-    if (turnOrder.length > 1) updates[`rooms/${currentRoomCode}/currentTurn`] = currentTurn;
-
-    updates[`rooms/${currentRoomCode}/direction`] = direction;
-    updates[`rooms/${currentRoomCode}/deck`] = currentDeck;
-    updates[`rooms/${currentRoomCode}/discardPile`] = discard;
-    updates[`rooms/${currentRoomCode}/mainCard`] = cardData;
-    
-    const uniqueActionId = 'play_' + Math.random().toString(36).substr(2, 9);
-    updates[`rooms/${currentRoomCode}/lastAction`] = { type: 'play', playerId: myPlayerId, cardId: cardData.id, card: cardData, actionId: uniqueActionId };
-    
-    update(ref(db), updates);
+    if (isMyTurn && game.pendingDraw > 0 && !autoDrawProcessing) {
+        autoDrawProcessing = true;
+        handleAutoDraw(game.pendingDraw, game);
+    }
 }
 
-function drawCardFromDeck() {
-    const turnOrder = gameState.turnOrder || [];
-    if (!turnOrder.includes(myPlayerId) || turnOrder[gameState.currentTurn] !== myPlayerId) return alert("Not your turn!");
+async function playCard(index, card) {
+    const gameSnapshot = await get(ref(db, `rooms/${roomId}/game`));
+    const game = gameSnapshot.val();
 
-    let deck = [...(gameState.deck || [])];
-    let discard = gameState.discardPile ? [...gameState.discardPile] : [];
+    if (game.turn !== playerId) return showError("Not your turn!");
     
-    // 🔥 FIX: Auto-reshuffle deck from discard pile
-    if (deck.length === 0) {
-        if (discard.length === 0) return alert("No cards left in the game!");
-        deck = discard.sort(() => Math.random() - 0.5);
-        discard = [];
+    const topCard = game.discard;
+    const isValid = card.color === "Black" || card.color === topCard.color || card.value === topCard.value;
+    if (!isValid) return showError("Invalid card compilation!");
+
+    let targetCard = { ...card };
+    if(card.color === "Black") {
+        let chosenColor = prompt("Choose a Color: Red, Green, Blue, Yellow");
+        if(chosenColor) {
+            chosenColor = chosenColor.trim();
+            chosenColor = chosenColor.charAt(0).toUpperCase() + chosenColor.slice(1).toLowerCase();
+        }
+        if(!["Red", "Green", "Blue", "Yellow"].includes(chosenColor)) {
+            chosenColor = "Red"; 
+        }
+        targetCard.color = chosenColor; 
     }
 
+    if(playerCardsGrid.children[index]) {
+        animateFlyingCard(playerCardsGrid.children[index].getBoundingClientRect(), mainDiscardCard.getBoundingClientRect(), card);
+    }
+
+    myCards.splice(index, 1);
+    await update(ref(db, `rooms/${roomId}/players/${playerId}`), { cards: myCards, cardCount: myCards.length });
+
+    let nextTurnIndex = game.order.indexOf(playerId);
+    let pendingDraw = game.pendingDraw || 0;
+    
+    if (card.value === "Reverse") game.direction *= -1;
+    if (card.value === "+2") pendingDraw += 2;
+    if (card.value === "+4") pendingDraw += 4;
+
+    let turnStep = game.direction;
+    if (card.value === "Skip") turnStep *= 2; 
+
+    let nextTurn = "";
+    let loopCount = 0;
+    do {
+        nextTurnIndex = (nextTurnIndex + turnStep + game.order.length) % game.order.length;
+        nextTurn = game.order[nextTurnIndex];
+        turnStep = game.direction; 
+        loopCount++;
+        if(loopCount > game.order.length) break; 
+    } while ((await get(ref(db, `rooms/${roomId}/players/${nextTurn}/status`))).val() === "spectator");
+
+    const allPlayersSnap = await get(ref(db, `rooms/${roomId}/players`));
+    const allPlayers = allPlayersSnap.val();
+    const activePlayers = Object.values(allPlayers).filter(p => p.status === "active" || p.cards?.length > 0);
+    
+    if (myCards.length === 0 && activePlayers.length <= 1) {
+        endGame(allPlayers);
+        return;
+    }
+
+    await update(ref(db, `rooms/${roomId}/game`), {
+        discard: targetCard,
+        turn: nextTurn,
+        direction: game.direction,
+        pendingDraw: pendingDraw,
+        lastAction: "play"
+    });
+}
+
+btnDrawCard.addEventListener("click", async () => {
+    const gameSnapshot = await get(ref(db, `rooms/${roomId}/game`));
+    const game = gameSnapshot.val();
+    
+    if (game.turn !== playerId) return showError("Not your turn!");
+
+    animateFlyingCard(btnDrawCard.getBoundingClientRect(), playerCardsGrid.getBoundingClientRect(), {value: "❓", color: "Black"});
+
+    let deck = game.deck || [];
+    if (deck.length === 0) deck = generateDeck();
+    
     const drawnCard = deck.pop();
-    let myCards = [...(gameState.players[myPlayerId].cards || [])];
     myCards.push(drawnCard);
 
-    const drawPileRect = document.getElementById('draw-pile').getBoundingClientRect();
-    const handRect = document.getElementById('player-hand').getBoundingClientRect();
-    const flyingCard = document.createElement('div');
-    flyingCard.className = "uno-card flying-card";
-    flyingCard.innerHTML = `<div class="card-inner" style="background:#2c3e50;"></div>`;
-    flyingCard.style.left = `${drawPileRect.left}px`; flyingCard.style.top = `${drawPileRect.top}px`;
-    document.getElementById('animation-layer').appendChild(flyingCard);
+    await update(ref(db, `rooms/${roomId}/players/${playerId}`), { cards: myCards, cardCount: myCards.length });
+    
+    let nextTurnIndex = (game.order.indexOf(playerId) + game.direction + game.order.length) % game.order.length;
+    while ((await get(ref(db, `rooms/${roomId}/players/${game.order[nextTurnIndex]}/status`))).val() === "spectator") {
+        nextTurnIndex = (nextTurnIndex + game.direction + game.order.length) % game.order.length;
+    }
 
-    setTimeout(() => {
-        flyingCard.style.left = `${handRect.left + (handRect.width/2)}px`;
-        flyingCard.style.top = `${handRect.top}px`;
-        flyingCard.style.opacity = '0';
-    }, 20);
+    await update(ref(db, `rooms/${roomId}/game`), {
+        deck: deck,
+        turn: game.order[nextTurnIndex],
+        lastAction: "draw"
+    });
+});
 
-    setTimeout(() => {
-        flyingCard.remove();
-        let direction = gameState.direction || 1;
-        let nextTurn = (gameState.currentTurn + direction) % turnOrder.length;
-        if(nextTurn < 0) nextTurn += turnOrder.length;
+async function handleAutoDraw(amount, game) {
+    let deck = game.deck || [];
+    if(deck.length < amount) deck = deck.concat(generateDeck());
+    
+    const drawnCards = deck.splice(-amount);
+    myCards.push(...drawnCards);
 
-        const updates = {};
-        updates[`rooms/${currentRoomCode}/deck`] = deck;
-        updates[`rooms/${currentRoomCode}/discardPile`] = discard;
-        updates[`rooms/${currentRoomCode}/players/${myPlayerId}/cards`] = myCards;
-        updates[`rooms/${currentRoomCode}/currentTurn`] = nextTurn;
-        updates[`rooms/${currentRoomCode}/lastAction`] = { type: 'draw', playerId: myPlayerId, cardId: drawnCard.id, actionId: 'draw_' + Math.random().toString(36).substr(2, 9) };
-        update(ref(db), updates);
-    }, 550);
+    const deckRect = btnDrawCard.getBoundingClientRect();
+    const handRect = playerCardsGrid.getBoundingClientRect();
+    for(let i=0; i<amount; i++) {
+        setTimeout(() => animateFlyingCard(deckRect, handRect, {value:"+", color:"Black"}), i*150);
+    }
+
+    await update(ref(db, `rooms/${roomId}/players/${playerId}`), { cards: myCards, cardCount: myCards.length });
+    
+    let nextTurnIndex = (game.order.indexOf(playerId) + game.direction + game.order.length) % game.order.length;
+    while ((await get(ref(db, `rooms/${roomId}/players/${game.order[nextTurnIndex]}/status`))).val() === "spectator") {
+        nextTurnIndex = (nextTurnIndex + game.direction + game.order.length) % game.order.length;
+    }
+    
+    await update(ref(db, `rooms/${roomId}/game`), {
+        deck: deck,
+        turn: game.order[nextTurnIndex],
+        pendingDraw: 0,
+        lastAction: "auto-draw"
+    });
+    autoDrawProcessing = false;
 }
 
-function renderStandingsScreen() {
-    switchToScreen('gameover');
-    const container = document.getElementById('standings-list');
-    container.innerHTML = "";
-    const finalStandings = gameState.standings || [];
-    finalStandings.forEach((name, index) => {
-        const rank = index + 1;
-        const rankClass = rank === 1 ? 'rank-1' : '';
-        const trophy = rank === 1 ? '👑' : '⚫';
-        container.innerHTML += `
-            <div class="standing-item ${rankClass}">
-                <span>${trophy} Rank ${rank}: ${name}</span>
-                <span>${rank === 1 ? 'Winner' : 'Done'}</span>
-            </div>
-        `;
+// --- ANIMATION CORE SYSTEM ---
+function animateFlyingCard(startRect, endRect, cardData) {
+    const animLayer = document.getElementById("animation-layer");
+    const flyingCard = document.createElement("div");
+    flyingCard.className = "card flying-card";
+    flyingCard.innerText = cardData.value;
+    flyingCard.style.color = cardData.color !== "Black" ? cardData.color : "black";
+    flyingCard.style.position = "fixed";
+    flyingCard.style.left = startRect.left + "px";
+    flyingCard.style.top = startRect.top + "px";
+    
+    animLayer.appendChild(flyingCard);
+
+    requestAnimationFrame(() => {
+        flyingCard.style.left = endRect.left + "px";
+        flyingCard.style.top = endRect.top + "px";
+        flyingCard.style.transform = "scale(1.2) rotate(180deg)";
+    });
+
+    setTimeout(() => {
+        if (animLayer.contains(flyingCard)) animLayer.removeChild(flyingCard);
+    }, 600);
+}
+
+function animateInitialDistribution() {
+    setTimeout(() => {
+        const deckSlot = btnDrawCard.getBoundingClientRect();
+        const handSlot = playerCardsGrid.getBoundingClientRect();
+        
+        const startX = deckSlot.left || (window.innerWidth / 2 + 50);
+        const startY = deckSlot.top || (window.innerHeight / 2);
+        const endX = handSlot.left || (window.innerWidth / 2 - 100);
+        const endY = handSlot.top || (window.innerHeight - 150);
+
+        for(let i = 0; i < 14; i++) {
+            setTimeout(() => {
+                animateFlyingCard(
+                    { left: startX, top: startY },
+                    { left: endX + (i * 5), top: endY },
+                    { value: "UNO", color: "Red" }
+                );
+            }, i * 100);
+        }
+    }, 600);
+}
+
+// --- GAME CHAT CONTROLS ---
+document.getElementById("btn-toggle-chat").addEventListener("click", () => gameChatPopup.classList.toggle("hidden"));
+document.getElementById("btn-close-chat").addEventListener("click", () => gameChatPopup.classList.add("hidden"));
+document.getElementById("btn-game-send").addEventListener("click", () => {
+    const msg = gameChatInput.value.trim();
+    if (!msg) return;
+    push(ref(db, `rooms/${roomId}/gameChat`), { sender: playerName, msg });
+    gameChatInput.value = "";
+});
+
+function endGame(players) {
+    gameActive = false;
+    switchScreen("gameOver");
+    const standingsList = document.getElementById("standings-list");
+    standingsList.innerHTML = "";
+    const sortedPlayers = Object.values(players).sort((a, b) => (a.cardCount || 0) - (b.cardCount || 0));
+    sortedPlayers.forEach(p => {
+        const li = document.createElement("li");
+        li.innerText = `${p.name} - ${p.cardCount === 0 ? "Winner!" : p.cardCount + " Cards Left"}`;
+        standingsList.appendChild(li);
     });
 }
 
-function returnToLobbyIndividually() {
-    hasTurnNotified = false; lastActionId = "";
-    const updates = {};
-    updates[`rooms/${currentRoomCode}/status`] = "lobby";
-    updates[`rooms/${currentRoomCode}/players/${myPlayerId}/cards`] = null;
-    updates[`rooms/${currentRoomCode}/standings`] = null;
-    updates[`rooms/${currentRoomCode}/turnOrder`] = null;
-    updates[`rooms/${currentRoomCode}/deck`] = null;
-    updates[`rooms/${currentRoomCode}/discardPile`] = null;
-    updates[`rooms/${currentRoomCode}/mainCard`] = null;
-    update(ref(db), updates).then(() => switchToScreen('lobby'));
-}
+document.getElementById("btn-back-to-lobby").addEventListener("click", async () => {
+    if (isHost) {
+        await update(ref(db, `rooms/${roomId}`), { state: "lobby" });
+        const snapshot = await get(ref(db, `rooms/${roomId}/players`));
+        const players = snapshot.val();
+        for(let id in players) {
+            await update(ref(db, `rooms/${roomId}/players/${id}`), { cards: [], status: "active", cardCount: 0 });
+        }
+    }
+    enterLobby();
+});
