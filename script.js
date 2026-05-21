@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, set, get, update, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-// Firebase Secure Realtime Infrastructure Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyCKqsxIC2aGBR0UnejiXlIaJeKAfdW_Zp0",
     authDomain: "online-ha.firebaseapp.com",
@@ -16,7 +15,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Global Isolated Application States
 let roomId = null;
 let playerName = "";
 let playerId = "player_" + Math.random().toString(36).substr(2, 9);
@@ -58,16 +56,8 @@ const gameChatBox = document.getElementById("game-chat-box");
 const gameChatInput = document.getElementById("game-chat-input");
 
 function switchScreen(screenName) {
-    Object.values(screens).forEach(s => {
-        if(s) {
-            s.classList.remove("active");
-            s.classList.add("hidden");
-        }
-    });
-    if(screens[screenName]) {
-        screens[screenName].classList.add("active");
-        screens[screenName].classList.remove("hidden");
-    }
+    Object.values(screens).forEach(s => { if(s) { s.classList.remove("active"); s.classList.add("hidden"); } });
+    if(screens[screenName]) { screens[screenName].classList.add("active"); screens[screenName].classList.remove("hidden"); }
 }
 
 function showError(msg) {
@@ -86,39 +76,39 @@ function createCardDOM(card) {
     const cardEl = document.createElement("div");
     const isWild = card.value === "Wild" || card.value === "+4";
     
+    cardEl.className = `uno-card-real-look ${isWild ? 'card-black-look' : 'card-' + card.color.toLowerCase() + '-look'}`;
+
     if (isWild && card.color !== "Black") {
-        cardEl.className = `uno-card-element card-${card.color.toLowerCase()}`;
-    } else {
-        cardEl.className = `uno-card-element card-${isWild ? 'black' : card.color.toLowerCase()}`;
+        cardEl.className = `uno-card-real-look card-${card.color.toLowerCase()}-look`;
     }
-    
-    if (isWild && card.color !== "Black") {
-        cardEl.style.borderColor = `var(--uno-${card.color.toLowerCase()})`;
-    }
-    
+
     if (isWild && card.color === "Black") {
         const quad = document.createElement("div");
-        quad.className = "wild-quadrant-bg";
-        quad.innerHTML = `<div class="q-red"></div><div class="q-blue"></div><div class="q-green"></div><div class="q-yellow"></div>`;
+        quad.className = "real-wild-quadrant";
+        quad.innerHTML = `<div class="wq-r"></div><div class="wq-b"></div><div class="wq-g"></div><div class="wq-y"></div>`;
         cardEl.appendChild(quad);
     }
 
     const valueStr = card.value;
-    const topLeft = document.createElement("span");
-    topLeft.className = "card-mini-symbol symbol-top-left";
-    topLeft.innerText = valueStr;
     
-    const center = document.createElement("span");
-    center.className = "card-center-value";
-    center.innerText = valueStr;
+    const symTop = document.createElement("span");
+    symTop.className = "symbol-mini sym-top";
+    symTop.innerText = valueStr;
     
-    const bottomRight = document.createElement("span");
-    bottomRight.className = "card-mini-symbol symbol-bottom-right";
-    bottomRight.innerText = valueStr;
+    const centerEllipse = document.createElement("div");
+    centerEllipse.className = "card-center-ellipse";
+    const centerVal = document.createElement("span");
+    centerVal.className = "center-huge-value";
+    centerVal.innerText = valueStr;
+    centerEllipse.appendChild(centerVal);
     
-    cardEl.appendChild(topLeft);
-    cardEl.appendChild(center);
-    cardEl.appendChild(bottomRight);
+    const symBottom = document.createElement("span");
+    symBottom.className = "symbol-mini sym-bottom";
+    symBottom.innerText = valueStr;
+    
+    cardEl.appendChild(symTop);
+    cardEl.appendChild(centerEllipse);
+    cardEl.appendChild(symBottom);
     
     return cardEl;
 }
@@ -143,7 +133,7 @@ function generateDeck() {
 
 document.getElementById("btn-create-room").addEventListener("click", async () => {
     playerName = createName.value.trim();
-    if (!playerName) return showError("Please enter your name");
+    if (!playerName) return showError("Please enter operator identity!");
     
     roomId = Math.floor(1000 + Math.random() * 9000).toString();
     isHost = true;
@@ -158,14 +148,14 @@ document.getElementById("btn-create-room").addEventListener("click", async () =>
         enterLobby();
     } catch (error) {
         console.error(error);
-        showError("Portal initialization error!");
+        showError("Initialization error!");
     }
 });
 
 document.getElementById("btn-join-room").addEventListener("click", async () => {
     playerName = joinName.value.trim();
     roomId = joinCode.value.trim();
-    if (!playerName || !roomId) return showError("Enter credentials fully");
+    if (!playerName || !roomId) return showError("Provide complete sector credentials!");
     
     try {
         const snapshot = await get(ref(db, `rooms/${roomId}`));
@@ -176,10 +166,10 @@ document.getElementById("btn-join-room").addEventListener("click", async () => {
             });
             enterLobby();
         } else {
-            showError("Invalid Code Node!");
+            showError("Invalid Sector Node!");
         }
     } catch(e) {
-        showError("Room Access Failure!");
+        showError("Node connection failed!");
     }
 });
 
@@ -198,7 +188,7 @@ function enterLobby() {
         lobbyPlayerList.innerHTML = "";
         Object.values(snapshot.val()).forEach(p => {
             const li = document.createElement("li");
-            li.innerText = `» ${p.name.toUpperCase()}`;
+            li.innerText = `» RUNTIME: ${p.name.toUpperCase()}`;
             lobbyPlayerList.appendChild(li);
         });
     });
@@ -346,7 +336,7 @@ function renderCycleTracker(game, allPlayers) {
 
         const node = document.createElement("div");
         node.className = `cycle-node ${pId === currentTurn ? 'active-node' : ''}`;
-        node.innerText = `${playerData.name} (${playerData.cardCount})`;
+        node.innerText = `${playerData.name.toUpperCase()} [${playerData.cardCount}]`;
         
         dynamicCycleList.appendChild(node);
 
@@ -367,7 +357,6 @@ function updateGameScreen(game) {
         if (topCard.value) {
             const cardDOM = createCardDOM(topCard);
             mainDiscardCard.className = cardDOM.className;
-            mainDiscardCard.style.borderColor = cardDOM.style.borderColor;
             mainDiscardCard.innerHTML = cardDOM.innerHTML;
         }
     }
@@ -375,15 +364,15 @@ function updateGameScreen(game) {
     const isMyTurn = (game.turn === playerId);
     if(currentTurnDisplay) {
         if (isMyTurn) {
-            currentTurnDisplay.innerText = "YOUR ACTION PHASE!";
+            currentTurnDisplay.innerText = "YOUR TERM PHASING... INJECT CODE NOW!";
             currentTurnDisplay.style.color = "var(--neon-green)";
             if(["play", "start", "draw"].includes(game.lastAction) && flashTurnAlert) {
                 flashTurnAlert.classList.remove("hidden");
                 setTimeout(() => { if(flashTurnAlert) flashTurnAlert.classList.add("hidden"); }, 1600);
             }
         } else {
-            currentTurnDisplay.innerText = "WAITING FOR CREW CODES...";
-            currentTurnDisplay.style.color = "#fff";
+            currentTurnDisplay.innerText = "WAITING FOR CREW EMISSION CYCLE...";
+            currentTurnDisplay.style.color = "#8892b0";
         }
     }
 
@@ -399,17 +388,17 @@ async function playCard(index, card) {
     const gameSnapshot = await get(ref(db, `rooms/${roomId}/game`));
     const game = gameSnapshot.val();
 
-    if (game.turn !== playerId) return showError("Not your target turn phrase!");
+    if (game.turn !== playerId) return showError("Awaiting synced scheduling turn slot!");
     
     const topCard = game.discard;
     const isValid = card.color === "Black" || card.color === topCard.color || card.value === topCard.value;
-    if (!isValid) return showError("UNO Code Compilation Error: Card mismatch!");
+    if (!isValid) return showError("UNO Paradigm Error: Card signature mismatch!");
 
     isProcessingAction = true; 
 
     let targetCard = { ...card };
     if(card.color === "Black") {
-        let chosenColor = prompt("Matrix Choice: Red, Green, Blue, Yellow");
+        let chosenColor = prompt("Matrix Choice Selection: Red, Green, Blue, Yellow");
         if(chosenColor) {
             chosenColor = chosenColor.trim();
             chosenColor = chosenColor.charAt(0).toUpperCase() + chosenColor.slice(1).toLowerCase();
@@ -448,39 +437,39 @@ async function playCard(index, card) {
     let currentIdx = game.order.indexOf(playerId);
     let nextTurn = "";
     
-    if (card.value === "Reverse") game.direction *= -1;
+    let direction = game.direction;
+    if (card.value === "Reverse") direction *= -1;
+    
     let pendingDraw = game.pendingDraw || 0;
     if (card.value === "+2") pendingDraw += 2;
     if (card.value === "+4") pendingDraw += 4;
 
-    let activeCount = 0;
-    game.order.forEach(id => {
-        if (allPlayers[id] && allPlayers[id].status !== "spectator") activeCount++;
-    });
+    // --- STRATEGIC FIX: Strict Multi-user Next Turn Sequence Calculation Loop ---
+    let loopIndex = currentIdx;
+    let iterations = 0;
+    let neededActiveHits = (card.value === "Skip") ? 2 : 1;
+    let activeHitsFound = 0;
 
-    if (activeCount <= 2 && (card.value === "Skip" || card.value === "Reverse")) {
-        nextTurn = playerId;
-    } else {
-        let checkIdx = currentIdx;
-        let activePlayersFound = 0;
-        let targetActiveCount = (card.value === "Skip") ? 2 : 1; 
-        let safetyCounter = 0;
-
-        while (activePlayersFound < targetActiveCount && safetyCounter < game.order.length) {
-            checkIdx = (checkIdx + game.direction + game.order.length) % game.order.length;
-            if (allPlayers[game.order[checkIdx]] && allPlayers[game.order[checkIdx]].status !== "spectator") {
-                activePlayersFound++;
-                nextTurn = game.order[checkIdx];
+    while (iterations < game.order.length * 2) {
+        loopIndex = (loopIndex + direction + game.order.length) % game.order.length;
+        const prospectivePlayerId = game.order[loopIndex];
+        
+        if (allPlayers[prospectivePlayerId] && allPlayers[prospectivePlayerId].status !== "spectator") {
+            activeHitsFound++;
+            if (activeHitsFound === neededActiveHits) {
+                nextTurn = prospectivePlayerId;
+                break;
             }
-            safetyCounter++;
         }
-        if(!nextTurn) nextTurn = playerId; 
+        iterations++;
     }
+    
+    if (!nextTurn) nextTurn = playerId; 
 
     await update(ref(db, `rooms/${roomId}/game`), {
         discard: targetCard,
         turn: nextTurn,
-        direction: game.direction,
+        direction: direction,
         pendingDraw: pendingDraw,
         lastAction: "play"
     });
@@ -493,7 +482,7 @@ btnDrawCard.addEventListener("click", async () => {
 
     const gameSnapshot = await get(ref(db, `rooms/${roomId}/game`));
     const game = gameSnapshot.val();
-    if (game.turn !== playerId) return showError("Turn Blocked!");
+    if (game.turn !== playerId) return showError("Action sequence locked out!");
 
     isProcessingAction = true; 
     if(btnDrawCard && playerCardsGrid) {
@@ -517,22 +506,29 @@ btnDrawCard.addEventListener("click", async () => {
     
     if (isPlayableImmediate) {
         await update(ref(db, `rooms/${roomId}/game`), { deck: deck, lastAction: "draw" });
-        showError("Drawn card is playable! Throw it or wait.");
+        showError("Drawn chip matching node! Deploy card or bypass.");
         isProcessingAction = false;
         return; 
     }
 
-    let nextTurnIndex = (game.order.indexOf(playerId) + game.direction + game.order.length) % game.order.length;
+    let nextTurnIndex = game.order.indexOf(playerId);
     let drawLoopCount = 0;
-    
-    while (allPlayers[game.order[nextTurnIndex]] && allPlayers[game.order[nextTurnIndex]].status === "spectator" && drawLoopCount < game.order.length) {
+    let nextTurn = "";
+
+    while (drawLoopCount < game.order.length) {
         nextTurnIndex = (nextTurnIndex + game.direction + game.order.length) % game.order.length;
+        if (allPlayers[game.order[nextTurnIndex]] && allPlayers[game.order[nextTurnIndex]].status !== "spectator") {
+            nextTurn = game.order[nextTurnIndex];
+            break;
+        }
         drawLoopCount++;
     }
 
+    if(!nextTurn) nextTurn = playerId;
+
     await update(ref(db, `rooms/${roomId}/game`), {
         deck: deck,
-        turn: game.order[nextTurnIndex],
+        turn: nextTurn,
         lastAction: "draw"
     });
     
@@ -560,17 +556,24 @@ async function handleAutoDraw(amount, game) {
     const allPlayersSnap = await get(ref(db, `rooms/${roomId}/players`));
     const allPlayers = allPlayersSnap.val();
 
-    let nextTurnIndex = (game.order.indexOf(playerId) + game.direction + game.order.length) % game.order.length;
+    let nextTurnIndex = game.order.indexOf(playerId);
     let autoLoopCount = 0;
+    let nextTurn = "";
     
-    while (allPlayers[game.order[nextTurnIndex]] && allPlayers[game.order[nextTurnIndex]].status === "spectator" && autoLoopCount < game.order.length) {
+    while (autoLoopCount < game.order.length) {
         nextTurnIndex = (nextTurnIndex + game.direction + game.order.length) % game.order.length;
+        if (allPlayers[game.order[nextTurnIndex]] && allPlayers[game.order[nextTurnIndex]].status !== "spectator") {
+            nextTurn = game.order[nextTurnIndex];
+            break;
+        }
         autoLoopCount++;
     }
+
+    if(!nextTurn) nextTurn = playerId;
     
     await update(ref(db, `rooms/${roomId}/game`), {
         deck: deck,
-        turn: game.order[nextTurnIndex],
+        turn: nextTurn,
         pendingDraw: 0,
         lastAction: "auto-draw"
     });
@@ -592,12 +595,12 @@ function animateFlyingCard(startRect, endRect, cardData) {
     requestAnimationFrame(() => {
         flyingCard.style.left = endRect.left + "px";
         flyingCard.style.top = endRect.top + "px";
-        flyingCard.style.transform = "scale(1.1) rotate(360deg)";
+        flyingCard.style.transform = "scale(1.05) rotate(180deg)";
     });
 
     setTimeout(() => {
         if (animLayer.contains(flyingCard)) animLayer.removeChild(flyingCard);
-    }, 550);
+    }, 530);
 }
 
 function animateInitialDistribution() {
@@ -612,7 +615,7 @@ function animateInitialDistribution() {
 
         for(let i = 0; i < 7; i++) {
             setTimeout(() => {
-                animateFlyingCard({ left: startX, top: startY }, { left: endX + (i * 12), top: endY }, { value: "UNO", color: "Black" });
+                animateFlyingCard({ left: startX, top: startY }, { left: endX + (i * 12), top: endY }, { value: "NEO", color: "Black" });
             }, i * 90);
         }
     }, 400);
@@ -646,7 +649,7 @@ function endGame(players) {
     const sortedPlayers = Object.values(players).sort((a, b) => (a.cardCount || 0) - (b.cardCount || 0));
     sortedPlayers.forEach(p => {
         const li = document.createElement("li");
-        li.innerText = `${p.name.toUpperCase()} » ${p.cardCount === 0 ? "🏆 CHAMPION" : p.cardCount + " CARDS REMAINING"}`;
+        li.innerText = `${p.name.toUpperCase()} » REMAINING CARDS: ${p.cardCount || 0}`;
         standingsList.appendChild(li);
     });
 }
@@ -669,7 +672,7 @@ document.getElementById("btn-back-to-lobby").addEventListener("click", async () 
             }
             await update(ref(db), lobbyResetBatch);
         } catch(e) {
-            console.error("Lobby mutation error reset context:", e);
+            console.error("Lobby mutation error:", e);
         }
     }
     enterLobby();
