@@ -2,147 +2,111 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Online Multiplayer UNO Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer UNO Arena</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="error-message" class="hidden"></div>
+    <div id="animation-layer"></div>
+    <div id="flash-turn-alert" class="hidden">YOUR TURN!</div>
+    <div id="floating-chat-overlay" class="hidden"></div>
 
-    <!-- 1. JOINING / AUTH SCREEN -->
+    <!-- Join Screen -->
     <div id="join-screen" class="screen active">
-        <div class="auth-container">
-            <h2>UNO MULTIPLAYER</h2>
-            
-            <!-- Create Room Section -->
-            <div class="auth-section">
-                <h3>Create a Room</h3>
-                <input type="text" id="create-name" placeholder="Enter Your Name" autocomplete="off">
+        <div class="panel">
+            <h1>UNO ARENA</h1>
+            <div class="input-group">
+                <h3>Create New Room</h3>
+                <input type="text" id="create-name" placeholder="Enter Your Name">
                 <button id="btn-create-room">Create Room</button>
             </div>
-            
             <div class="divider">OR</div>
-            
-            <!-- Join Room Section -->
-            <div class="auth-section">
+            <div class="input-group">
                 <h3>Join Existing Room</h3>
-                <input type="text" id="join-name" placeholder="Enter Your Name" autocomplete="off">
-                <input type="text" id="join-code" placeholder="Enter Room Code" autocomplete="off">
+                <input type="text" id="join-name" placeholder="Enter Your Name">
+                <input type="text" id="join-code" placeholder="Room Code">
                 <button id="btn-join-room">Join Room</button>
             </div>
-            
-            <!-- Error Message Display -->
-            <div id="error-message" class="error-text hidden"></div>
         </div>
     </div>
 
-    <!-- 2. LOBBY SCREEN -->
+    <!-- Lobby Screen -->
     <div id="lobby-screen" class="screen hidden">
-        <div class="lobby-container">
-            <h2>Room Lobby: <span id="lobby-room-id">XXXX</span></h2>
-            
-            <div class="lobby-panels">
-                <!-- Player List Container -->
-                <div class="lobby-panel player-panel">
-                    <h3>Players Connected</h3>
-                    <ul id="lobby-player-list">
-                        <!-- Dynamic Player List -->
-                    </ul>
+        <div class="panel lobby-panel">
+            <h2>Room Code: <span id="lobby-room-id" class="highlight"></span></h2>
+            <div class="lobby-grid">
+                <div class="players-section">
+                    <h3>Crew Members</h3>
+                    <ul id="lobby-player-list"></ul>
                 </div>
-                
-                <!-- Chat Container -->
-                <div class="lobby-panel chat-panel">
-                    <h3>Lobby Chat</h3>
-                    <div id="lobby-chat-box" class="chat-display"></div>
+                <div class="chat-section">
+                    <div id="lobby-chat-box" class="chat-box"></div>
                     <div class="chat-input-row">
                         <input type="text" id="lobby-chat-input" placeholder="Type a message...">
                         <button id="btn-lobby-send">Send</button>
                     </div>
                 </div>
             </div>
-            
-            <div class="lobby-controls">
-                <button id="btn-start-game" class="btn-action hidden">Start Game</button>
-                <p id="wait-message" class="info-text">Waiting for host to start the game...</p>
+            <div class="lobby-actions">
+                <p id="wait-message">Waiting for host to start the game...</p>
+                <button id="btn-start-game" class="hidden start-btn">START GAME</button>
             </div>
         </div>
     </div>
 
-    <!-- 3. MAIN GAME SCREEN -->
+    <!-- Game Screen -->
     <div id="game-screen" class="screen hidden">
-        
-        <!-- Turn Indicator & Draw Cycle Info -->
         <div class="game-header">
-            <div id="draw-cycle-indicator" class="cycle-direction">Direction: Clockwise ↻</div>
-            <div id="current-turn-display" class="turn-banner">Waiting...</div>
+            <div id="dynamic-cycle-list"></div>
+            <h2 id="current-turn-display">WAITING FOR CREW CODES...</h2>
+            <button id="btn-toggle-chat" class="chat-toggle-btn">💬 Chat</button>
         </div>
 
-        <!-- Big Flashy Turn Alert -->
-        <div id="flash-turn-alert" class="flash-alert hidden">YOUR TURN!</div>
+        <div id="spectator-notice" class="hidden spectator-banner">You are now a Spectator!</div>
 
-        <!-- Main Board / Center Playground -->
-        <div class="game-board">
-            <!-- Discard Pile (Main Card Space - 3x to 4x size) -->
-            <div class="main-card-slot">
-                <div id="main-discard-card" class="card empty"></div>
+        <div class="play-area">
+            <div class="deck-container">
+                <div id="btn-draw-card" class="uno-deck">
+                    <span>UNO</span>
+                    <small>DRAW</small>
+                </div>
             </div>
-
-            <!-- Draw Deck Space (Card Draw Button with '+' sign) -->
-            <div class="draw-deck-slot">
-                <button id="btn-draw-card" class="draw-card-button">
-                    <span class="plus-sign">+</span>
-                </button>
+            <div class="discard-container">
+                <div id="main-discard-card" class="uno-card-element"></div>
             </div>
         </div>
 
-        <!-- Floating Chat Toast Notification -->
-        <div id="floating-chat-overlay" class="floating-chat hidden"></div>
+        <div class="player-hand-container">
+            <h3>Your Cards</h3>
+            <div id="player-cards-grid"></div>
+        </div>
 
-        <!-- Right Side Floating Chat Control Button -->
-        <button id="btn-toggle-chat" class="chat-toggle-btn">💬</button>
-
-        <!-- Slide-up Popup Chat Window -->
-        <div id="game-chat-popup" class="game-chat-window hidden">
-            <div class="chat-window-header">
-                <span>Game Chat</span>
+        <!-- In-Game Chat Popup -->
+        <div id="game-chat-popup" class="hidden">
+            <div class="chat-header">
+                <span>Comms Link</span>
                 <button id="btn-close-chat">✕</button>
             </div>
-            <div id="game-chat-box" class="chat-display"></div>
+            <div id="game-chat-box" class="chat-box"></div>
             <div class="chat-input-row">
-                <input type="text" id="game-chat-input" placeholder="Type a message...">
+                <input type="text" id="game-chat-input" placeholder="Message...">
                 <button id="btn-game-send">Send</button>
             </div>
         </div>
-
-        <!-- Spectator Status Notice -->
-        <div id="spectator-notice" class="spectator-banner hidden">You are now spectating the game</div>
-
-        <!-- Player's Cards Hand (Bottom Multi-line Container) -->
-        <div class="player-hand-container">
-            <div id="player-cards-grid" class="cards-grid">
-                <!-- Cards will render here dynamically without overlapping -->
-            </div>
-        </div>
-
     </div>
 
-    <!-- 4. GAME OVER / STANDINGS SCREEN -->
+    <!-- Game Over Screen -->
     <div id="game-over-screen" class="screen hidden">
-        <div class="game-over-container">
-            <h2>Game Over</h2>
-            <div class="standings-box">
-                <h3>Leaderboard</h3>
-                <ol id="standings-list">
-                    <!-- Leaderboard injected here -->
-                </ol>
-            </div>
-            <button id="btn-back-to-lobby">Back to Lobby</button>
+        <div class="panel">
+            <h1>GAME OVER</h1>
+            <h3>Final Standings</h3>
+            <ul id="standings-list"></ul>
+            <button id="btn-back-to-lobby" class="start-btn">Return to Lobby</button>
         </div>
     </div>
 
-    <!-- Animated Element Container (For flying cards) -->
-    <div id="animation-layer" class="animation-container"></div>
-
-    <!-- Core Modular Integration File Link -->
-    <script type="module" src="script.js" defer></script>
+    <!-- Firebase Script as Module -->
+    <script type="module" src="script.js"></script>
 </body>
 </html>
